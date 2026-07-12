@@ -149,6 +149,8 @@ interface LeadV2ReadRaw {
   estado_identificacion: string;
   etapa_embudo: string;
   segmento: "b2c" | "b2b";
+  necesidad: string | null;
+  objeciones: string[];
   created_at: string;
   updated_at: string | null;
 }
@@ -210,7 +212,10 @@ interface AccionPropuestaRaw {
   generado_por: string;
   estado: string;
   revisado_por: string | null;
+  revisado_en: string | null;
   motivo_rechazo: string | null;
+  borrador_final: { asunto: string; cuerpo: string } | null;
+  editado_por_humano: boolean;
   created_at: string;
   updated_at: string | null;
 }
@@ -273,10 +278,15 @@ function mapAccion(raw: AccionPropuestaRaw): AccionPropuesta {
     lead_id: String(raw.lead_id),
     tipo: raw.tipo as TipoAccion,
     destinatario: raw.destinatario,
+    // Si un humano ya lo editó, se muestra lo que REALMENTE salió, no el
+    // borrador original del agente.
     borrador: {
       canal: "email",
-      asunto: raw.asunto ?? "Comunicación de Futuro Academy",
-      cuerpo: raw.mensaje_sugerido,
+      asunto:
+        raw.borrador_final?.asunto ??
+        raw.asunto ??
+        "Comunicación de Futuro Academy",
+      cuerpo: raw.borrador_final?.cuerpo ?? raw.mensaje_sugerido,
     },
     // El razonamiento del agente es lo que Carlos lee antes de aprobar (criterio 3.2).
     razonamiento:
@@ -285,7 +295,7 @@ function mapAccion(raw: AccionPropuestaRaw): AccionPropuesta {
     fuentes_consultadas: raw.fuentes_consultadas ?? [],
     estado: raw.estado as EstadoAccion,
     revisado_por: raw.revisado_por,
-    editado_por_humano: false,
+    editado_por_humano: raw.editado_por_humano ?? false,
   };
 }
 
@@ -312,8 +322,9 @@ function mapLead(
       documento_valido: raw.cedula ? true : undefined,
       empresa: raw.empresa ?? undefined,
     },
-    necesidad: senales?.objetivo ?? undefined,
-    objeciones: [],
+    // El brief que lee Carlos antes de llamar (criterio 3.1).
+    necesidad: raw.necesidad ?? undefined,
+    objeciones: raw.objeciones ?? [],
     senales: senales
       ? {
           perfil_riesgo: senales.perfil_riesgo ?? undefined,
@@ -433,10 +444,18 @@ export async function fetchLeadDetalle(leadId: number): Promise<{
 
 /**
  * Aprueba una acción propuesta. El backend verifica consentimiento (403 si no).
+ *
+ * Si se pasa `borrador`, el backend compara con lo que redactó el agente: si
+ * cambió, la acción queda como `editada_y_aprobada` con `editado_por_humano`,
+ * y la bitácora registra que la última palabra fue de un humano (criterio 3.3).
  */
-export async function aprobarAccion(accionId: number): Promise<void> {
+export async function aprobarAccion(
+  accionId: number,
+  borrador?: { asunto: string; cuerpo: string }
+): Promise<void> {
   await apiFetch(`/api/consola/acciones/${accionId}/aprobar`, {
     method: "POST",
+    body: JSON.stringify(borrador ?? {}),
   });
 }
 

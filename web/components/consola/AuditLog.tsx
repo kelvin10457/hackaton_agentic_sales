@@ -50,7 +50,10 @@ function mapearEvento(raw: EventoAuditoriaRaw): LogEntry {
     consentimiento_otorgado: `Consentimiento otorgado: ${(raw.payload as Record<string, string>)?.finalidad ?? 'datos'}`,
     score_calculado: `Score recalculado: ${(raw.payload as Record<string, number>)?.total ?? '—'}`,
     accion_generada: 'Acción propuesta generada',
-    accion_aprobada: 'Comunicación aprobada',
+    // Aquí se cierra la tesis: el agente nunca tuvo la capacidad de enviarlo.
+    accion_aprobada: (raw.payload as Record<string, unknown>)?.editado_por_humano
+      ? 'EDITÓ el borrador y APROBÓ el envío'
+      : 'APROBÓ la comunicación propuesta sin cambios',
     accion_rechazada: 'Propuesta rechazada — lead a nutrición',
     crm_upsert: 'Lead sincronizado al CRM',
     error: `Error: ${(raw.payload as Record<string, string>)?.mensaje ?? 'desconocido'}`,
@@ -67,6 +70,9 @@ function mapearEvento(raw: EventoAuditoriaRaw): LogEntry {
     if (p.banda) metadato = `Banda: ${String(p.banda).toUpperCase()}`;
     if (p.motivo_rechazo) metadato = `Motivo: ${p.motivo_rechazo}`;
     if (p.accion) metadato = `Acción: ${p.accion}`;
+    // La marca de responsabilidad (Biblia §10): no se censura al asesor
+    // habilitado, se le hace RESPONSABLE.
+    if (p.editado_por_humano === true) metadato = 'editado_por_humano = true';
   }
 
   return {

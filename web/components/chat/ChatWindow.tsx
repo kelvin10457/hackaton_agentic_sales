@@ -111,6 +111,11 @@ export function ChatWindow() {
       if (respuesta.accion === "proponer_quiz" && !perfil) {
         setOfertaQuiz(true);
       }
+      // B2B no tiene quiz (es de perfil de riesgo personal): el agente pide el
+      // correo directamente. También ocurre en B2C si ya completó el quiz.
+      if (respuesta.accion === "pedir_email") {
+        setFlujo("email");
+      }
     } catch {
       agregarMensaje(
         "agente",

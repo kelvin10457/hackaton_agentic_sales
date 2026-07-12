@@ -170,6 +170,12 @@ class LeadV2(Base):
     estado_identificacion: Mapped[str] = mapped_column(String(50), default="anonimo")
     etapa_embudo: Mapped[str] = mapped_column(String(50), default="nuevo")
     segmento: Mapped[str] = mapped_column(String(10), default="b2c")
+    # ── El brief que lee Carlos (Biblia §4.1, criterio 3.1) ──────────────────
+    # necesidad: lo que el prospecto dijo que quiere, con sus palabras.
+    necesidad: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # objeciones: sus frenos declarados ("me da miedo perder dinero"). Carlos
+    # NECESITA saberlos antes de llamar.
+    objeciones: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
@@ -272,7 +278,14 @@ class AccionPropuesta(Base):
     generado_por: Mapped[str] = mapped_column(String(200))      # "agente:cv5" o email
     estado: Mapped[str] = mapped_column(String(50), default="pendiente")
     revisado_por: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    revisado_en: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     motivo_rechazo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ── Rendición de cuentas (Biblia §4.6) ───────────────────────────────────
+    # Lo que REALMENTE salió, si Carlos editó el borrador del agente: {asunto, cuerpo}.
+    borrador_final: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # La marca de responsabilidad: el sistema no censura al asesor habilitado,
+    # lo hace RESPONSABLE. Queda su nombre, su hora y que fue él quien lo cambió.
+    editado_por_humano: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

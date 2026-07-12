@@ -30,6 +30,8 @@ from core.guardrails import (
     nuevo_disparo,
 )
 from tools.buscar_conocimiento import buscar_conocimiento
+from tools.inferir_senales import inferir_senales
+from tools.obtener_preguntas import siguiente_pregunta
 
 
 class RespuestaTurno(TypedDict, total=False):
@@ -38,7 +40,7 @@ class RespuestaTurno(TypedDict, total=False):
     estado_flujo: str
     badge_tipo: Optional[str]    # "B2C" | "B2B" | None
     guardrail: Optional[str]     # "G1" | "G2" | ... | None
-    accion: Optional[str]        # "proponer_quiz" | None
+    accion: Optional[str]        # "proponer_quiz" | "pedir_email" | None
     disparos: list[DisparoGuardrail]
 
 
@@ -161,56 +163,141 @@ def _turno_tutor(mensaje: str, historial: list[dict]) -> RespuestaTurno:
 _BADGE = {"B2B": "B2B", "B2C": "B2C"}
 
 
-def _turno_prospecto(mensaje: str, historial: list[dict]) -> RespuestaTurno:
-    badge: Optional[str] = None
-    texto = ""
+# Señales que, si están presentes, ya permiten clasificar al prospecto.
+_SENALES_CALIFICACION = (
+    "objetivo", "monto_declarado_usd", "horizonte", "experiencia_inversion",
+    "num_colaboradores", "presupuesto_capacitacion_usd",
+)
 
+
+def _seguir_acompanando(
+    mensaje: str,
+    historial: list[dict],
+    accion: Optional[str],
+) -> str:
+    """El prospecto sigue escribiendo con la calificación ya completa.
+
+    Con LLM: responde con naturalidad (sin volver a preguntar nada).
+    Sin LLM: una frase fija que no cierra la puerta y mantiene viva la acción
+    pendiente. En ningún caso se repite la pregunta ni el cierre anterior.
+    """
     if _hay_llm():
         try:
             from tools.conversar_prospecto import conversar_prospecto
-            conv = historial + [{"rol": "usuario", "texto": mensaje}]
-            r = conversar_prospecto(conv)
-            texto = (r.mensaje_agente or "").strip()
-            badge = _BADGE.get(r.tipo_prospecto_detectado)
+            r = conversar_prospecto(historial + [{"rol": "usuario", "texto": mensaje}])
+            if (r.mensaje_agente or "").strip():
+                return r.mensaje_agente.strip()
         except Exception:
-            texto = ""
+            pass
 
-    # Degradación sin LLM: consultoría breve y determinista para no romper el chat.
-    if not texto:
-        turnos_usuario = sum(1 for m in historial if m.get("rol") == "usuario")
-        if turnos_usuario == 0:
+    if accion == "proponer_quiz":
+        return (
+            "Sin problema. Cuando quieras, el quiz de perfil está aquí abajo — son "
+            "3 preguntas. Y si prefieres, puedo explicarte primero cualquier "
+            "concepto: ¿qué es un ETF, la diversificación, el interés compuesto…?"
+        )
+    return (
+        "Sin problema, no hay prisa. Cuando quieras me dejas tu correo y te lo "
+        "hago llegar. Mientras tanto, ¿te explico algún concepto?"
+    )
+
+
+def _turno_prospecto(
+    mensaje: str,
+    historial: list[dict],
+    quiz_perfil: Optional[str] = None,
+) -> RespuestaTurno:
+    """Calificación (Biblia §7).
+
+    Las preguntas NO las improvisa el LLM: salen de `config/preguntas_*.yaml`
+    (T2 · criterio 1.1 "preguntas configurables"). El grafo decide QUÉ preguntar;
+    el modelo, a lo sumo, extrae señales de la respuesta.
+
+    Ninguna pregunta se repite: ni las ya contestadas, ni las ya formuladas.
+    """
+    textos_usuario = [m["texto"] for m in historial if m.get("rol") == "usuario"]
+    textos_usuario.append(mensaje)
+
+    senales = inferir_senales(textos_usuario, quiz_perfil=quiz_perfil)
+    tipo = senales["segmento"]                    # "b2c" | "b2b"
+
+    # Badge B2B/B2C — solo con evidencia, nunca adivinado.
+    badge: Optional[str] = None
+    if tipo == "b2b":
+        badge = "B2B"
+    elif any(senales.get(s) not in (None, "") for s in _SENALES_CALIFICACION):
+        badge = "B2C"
+
+    # Lo que el agente YA preguntó (para no insistir).
+    ya_preguntadas = {
+        m["texto"] for m in historial if m.get("rol") == "agente" and m.get("texto")
+    }
+
+    pregunta = siguiente_pregunta(tipo, senales, ya_preguntadas)
+
+    if pregunta is not None:
+        # ← El texto sale del YAML, literal. Cambiarlo es editar config/.
+        texto = pregunta["texto"]
+        estado_flujo = "calificacion"
+        accion = None
+    else:
+        # Calificación completa. Siguiente paso del embudo (Biblia §7).
+        if tipo == "b2c" and quiz_perfil is None:
+            # B2C → EDUCACION: el quiz determinista de perfil de riesgo.
             texto = (
-                "Cuéntame un poco más: ¿buscas empezar a invertir tus ahorros, "
-                "aprender sobre un tema en particular, o es para tu empresa?"
+                "Con esto ya tengo tu panorama. Antes de conectarte con alguien, "
+                "¿quieres descubrir tu perfil de inversionista? Son 3 preguntas y "
+                "el resultado te lo llevas tú."
             )
+            estado_flujo = "educacion"
+            accion = "proponer_quiz"
         else:
+            # B2B no tiene quiz (Biblia §2.5), y el B2C que ya lo hizo tampoco.
+            # → IDENTIFICACION_2: el email, a cambio de valor.
             texto = (
-                "Entiendo. Para darte la mejor guía y, si lo deseas, conectarte con "
-                "un asesor de Futuro Academy, ¿podrías contarme cuál es tu objetivo "
-                "principal y en qué plazo te gustaría lograrlo?"
+                "Perfecto, con esto ya puedo preparar una propuesta para tu equipo. "
+                "¿A qué correo corporativo te la envío?"
+                if tipo == "b2b"
+                else
+                "Listo. ¿A qué correo te envío tu resultado y una ruta de "
+                "aprendizaje de 3 pasos?"
             )
+            estado_flujo = "identificacion_2"
+            accion = "pedir_email"
+
+        # Si el cierre ya se dijo y el prospecto sigue escribiendo, no se repite
+        # la misma frase como un loro: se le acompaña sin perder la acción
+        # pendiente (el botón del quiz / la captura de email siguen en pantalla).
+        if texto in ya_preguntadas:
+            texto = _seguir_acompanando(mensaje, historial, accion)
 
     texto, disparos = evaluar_salida_agente(texto)
 
     return RespuestaTurno(
         mensaje=texto,
         fuentes=[],
-        estado_flujo="calificacion",
+        estado_flujo=estado_flujo,
         badge_tipo=badge,
         guardrail=None,
-        accion=None,
+        accion=accion,
         disparos=disparos,
     )
 
 
 # ── Entrada pública ───────────────────────────────────────────────────────────
 
-def procesar_turno(historial: list[dict], mensaje_usuario: str) -> RespuestaTurno:
+def procesar_turno(
+    historial: list[dict],
+    mensaje_usuario: str,
+    quiz_perfil: Optional[str] = None,
+) -> RespuestaTurno:
     """Procesa UN turno del chat público y devuelve la respuesta del agente.
 
     `historial` es la lista de mensajes PREVIOS [{"rol", "texto", "fuentes"?}].
     `mensaje_usuario` es el texto que acaba de enviar el prospecto (aún no incluido
     en `historial`).
+    `quiz_perfil` es el perfil de riesgo si el prospecto ya completó el quiz
+    determinista — evita volver a ofrecérselo.
     """
     mensaje_usuario = (mensaje_usuario or "").strip()
     if not mensaje_usuario:
@@ -237,4 +324,4 @@ def procesar_turno(historial: list[dict], mensaje_usuario: str) -> RespuestaTurn
     modo = _detectar_modo(mensaje_usuario, historial)
     if modo == "TUTOR":
         return _turno_tutor(mensaje_usuario, historial)
-    return _turno_prospecto(mensaje_usuario, historial)
+    return _turno_prospecto(mensaje_usuario, historial, quiz_perfil=quiz_perfil)

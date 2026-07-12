@@ -17,7 +17,6 @@ INTEGRACIÓN R1 ↔ R2 (lo que faltaba):
   - Cada guardrail que se dispara se persiste en la bitácora (G8).
   - El agente PROPONE; nunca ejecuta un envío (no existe enviar_correo).
 """
-import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -56,6 +55,7 @@ from app.schemas import (
 
 # Núcleo agéntico (R1). El borde HTTP (app/) puede importar core/; nunca al revés.
 from core.servicio_agente import procesar_turno
+from tools.inferir_senales import inferir_senales
 from tools.obtener_quiz import obtener_preguntas_quiz, calcular_perfil_riesgo
 
 router = APIRouter(prefix="/api/chat", tags=["Chat (pública)"])
@@ -206,14 +206,17 @@ def enviar_mensaje(
     if not texto_usuario:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "El mensaje está vacío.")
 
-    historial = _historial_para_agente(_mensajes_ordenados(conv))
+    mensajes_previos = _mensajes_ordenados(conv)
+    historial = _historial_para_agente(mensajes_previos)
+    # Si ya hizo el quiz, el agente no vuelve a ofrecérselo (Contrato 4 de R3).
+    _, quiz_perfil = _leer_estado_sistema(mensajes_previos)
 
     # 1) Persistir el mensaje del usuario.
     db.add(Message(sender=_SENDER_USUARIO, content=texto_usuario, conversation_id=conv.id))
     db.flush()
 
     # 2) Despertar al núcleo agéntico (R1): un turno del chat.
-    resultado = procesar_turno(historial, texto_usuario)
+    resultado = procesar_turno(historial, texto_usuario, quiz_perfil=quiz_perfil)
 
     # 3) Persistir la respuesta del agente.
     db.add(Message(sender=_SENDER_AGENTE, content=resultado["mensaje"], conversation_id=conv.id))
@@ -343,125 +346,23 @@ def _nombre_desde_email(email: str | None) -> str:
 # y ahí se detiene: la acción nace 'pendiente' y NADIE la envía. La línea roja
 # la cruza Carlos desde la consola, o no la cruza nadie.
 #
-# TODO es determinista (cero LLM): "El LLM extrae. El código calcula."
+# La extracción es determinista y vive en tools/inferir_senales.py (código puro).
 # Sin evidencia en el historial → None. PROHIBIDO ADIVINAR (Biblia §4.2).
 # ══════════════════════════════════════════════════════════════════════════════
 
-_PISTAS_DINERO = (
-    "usd", "dólar", "dolar", "$", "monto", "ahorr", "invertir", "inversión",
-    "inversion", "presupuesto", "capital", "plata", "dinero", "tengo",
-)
+def _senales_del_historial(mensajes: list[Message]) -> dict:
+    """Adapta los mensajes de BD al formato que espera la tool determinista."""
+    textos_usuario = [m.content for m in mensajes if m.sender == _SENDER_USUARIO]
 
-
-def _extraer_monto(texto: str) -> float | None:
-    """Monto declarado en USD. Solo si el texto habla de dinero, y nunca
-    confundiendo un año (2026) con un monto."""
-    if not any(p in texto for p in _PISTAS_DINERO):
-        return None
-
-    candidatos: list[float] = []
-    # "10.000", "10,000", "10000"
-    for m in re.finditer(r"\b(\d{1,3}(?:[.,]\d{3})+|\d{3,7})\b", texto):
-        crudo = m.group(1).replace(".", "").replace(",", "")
-        try:
-            valor = float(crudo)
-        except ValueError:
-            continue
-        if 1900 <= valor <= 2100:   # es un año, no un monto
-            continue
-        if 100 <= valor <= 10_000_000:
-            candidatos.append(valor)
-    # "10 mil"
-    for m in re.finditer(r"\b(\d{1,3})\s*mil\b", texto):
-        candidatos.append(float(m.group(1)) * 1000)
-
-    return max(candidatos) if candidatos else None
-
-
-def _extraer_experiencia(texto: str) -> str | None:
-    """experiencia_inversion. Sin evidencia → None (no se adivina)."""
-    if any(p in texto for p in (
-        "nunca he invertido", "no he invertido", "sin experiencia", "desde cero",
-        "primera vez", "soy nuevo", "soy nueva", "principiante", "no sé nada",
-        "no se nada", "no tengo experiencia",
-    )):
-        return "ninguna"
-    if any(p in texto for p in ("poca experiencia", "algo de experiencia", "básico", "basico")):
-        return "basica"
-    if any(p in texto for p in ("varios años invirtiendo", "experiencia intermedia", "llevo años")):
-        return "intermedia"
-    if any(p in texto for p in ("soy inversionista", "experiencia avanzada", "manejo un portafolio")):
-        return "avanzada"
-    return None
-
-
-def _extraer_horizonte(texto: str) -> str | None:
-    if any(p in texto for p in ("ya", "ahora", "urgente", "inmediato", "hoy", "cuanto antes")):
-        return "inmediato"
-    if any(p in texto for p in ("este mes", "próximo mes", "proximo mes", "pronto", "unos meses", "próximos meses")):
-        return "1-3m"
-    if any(p in texto for p in ("medio año", "6 meses", "seis meses", "este año")):
-        return "3-6m"
-    if any(p in texto for p in ("largo plazo", "varios años", "más de un año", "mas de un año", "5 años")):
-        return "mas_6m"
-    return None
-
-
-def _inferir_senales(mensajes: list[Message]) -> dict:
-    """Deriva las Senales del contrato a partir del historial. Determinista."""
-    textos_lead = " ".join(m.content.lower() for m in mensajes if m.sender == _SENDER_USUARIO)
-    n_mensajes = sum(1 for m in mensajes if m.sender == _SENDER_USUARIO)
-
-    es_b2b = any(p in textos_lead for p in (
-        "empresa", "mi negocio", "equipo", "colaboradores", "empleados",
-        "capacitar", "corporativ", "somos una", "recursos humanos", "rrhh",
-    ))
-    segmento = "b2b" if es_b2b else "b2c"
-
-    if "invertir" in textos_lead or "inversión" in textos_lead or "inversion" in textos_lead:
-        objetivo = "invertir"
-    elif es_b2b and any(p in textos_lead for p in ("capacitar", "equipo", "colaboradores")):
-        objetivo = "capacitar_equipo"
-    elif any(p in textos_lead for p in ("aprender", "entender", "educación", "educacion", "saber")):
-        objetivo = "aprender"
-    else:
-        objetivo = None   # sin evidencia → None
-
-    pidio_asesor = any(p in textos_lead for p in (
-        "asesor", "hablar con alguien", "contactar", "reunión", "reunion",
-        "cotización", "cotizacion", "propuesta", "que me llamen", "llamada",
-    ))
-
-    # El quiz lo marca el CÓDIGO (mensaje de sistema), no el LLM.
-    completo_quiz = False
-    perfil_riesgo = None
+    # El quiz lo marca el CÓDIGO (mensaje de sistema), nunca el LLM.
+    quiz_perfil = None
     for m in mensajes:
         if m.sender == _SENDER_SISTEMA and m.content.startswith(_MARCA_PERFIL):
-            completo_quiz = True
-            perfil_riesgo = m.content[len(_MARCA_PERFIL):].strip() or None
+            quiz_perfil = m.content[len(_MARCA_PERFIL):].strip() or None
             break
 
-    num_colaboradores = None
-    if es_b2b:
-        m = re.search(r"\b(\d{1,5})\s*(?:colaboradores|empleados|personas|trabajadores)", textos_lead)
-        if m:
-            num_colaboradores = int(m.group(1))
+    return inferir_senales(textos_usuario, quiz_perfil=quiz_perfil)
 
-    return {
-        "segmento": segmento,
-        "objetivo": objetivo,
-        "horizonte": _extraer_horizonte(textos_lead),
-        "pidio_asesor": pidio_asesor,
-        "mensajes_intercambiados": n_mensajes,
-        "completo_quiz": completo_quiz,
-        "perfil_riesgo": perfil_riesgo,
-        "monto_declarado_usd": None if es_b2b else _extraer_monto(textos_lead),
-        "experiencia_inversion": None if es_b2b else _extraer_experiencia(textos_lead),
-        "num_colaboradores": num_colaboradores,
-        "presupuesto_capacitacion_usd": _extraer_monto(textos_lead) if es_b2b else None,
-        "es_decisor": es_b2b and any(p in textos_lead for p in ("soy el", "soy la", "gerente", "jefe", "director", "dueño")),
-        "solicito_propuesta": es_b2b and any(p in textos_lead for p in ("propuesta", "cotización", "cotizacion")),
-    }
 
 
 def _enriquecer_lead_post_consentimiento(
@@ -480,8 +381,11 @@ def _enriquecer_lead_post_consentimiento(
     no cosmético.
     """
     mensajes = _mensajes_ordenados(conv)
-    inferidas = _inferir_senales(mensajes)
+    inferidas = _senales_del_historial(mensajes)
     segmento = inferidas.pop("segmento")
+    # El brief vive en el Lead, no en Senales (Biblia §4.1).
+    necesidad = inferidas.pop("necesidad", None)
+    objeciones = inferidas.pop("objeciones", []) or []
 
     # ── 1. Señales (upsert; una fila por lead) ────────────────────────────────
     senales = db.query(SenalesLeadModel).filter(SenalesLeadModel.lead_id == lead_db_id).first()
@@ -501,11 +405,14 @@ def _enriquecer_lead_post_consentimiento(
     score = upsert_score(db, lead_db_id, senales, segmento)   # hace commit
     ruta = ruta_sugerida(segmento, score.total, bool(senales.pidio_asesor))
 
-    # ── 3. Etapa del embudo (Biblia §2/§3) ────────────────────────────────────
+    # ── 3. Etapa del embudo + BRIEF (Biblia §2/§3/§4.1) ───────────────────────
     lead = db.query(LeadV2Model).filter(LeadV2Model.id == lead_db_id).first()
     if lead:
         lead.segmento = segmento
         lead.etapa_embudo = "listo_para_asesor" if senales.pidio_asesor else "calificado"
+        # Lo que Carlos necesita leer ANTES de llamar (criterio 3.1).
+        lead.necesidad = necesidad
+        lead.objeciones = objeciones
         lead.updated_at = _now()
         db.commit()
 
