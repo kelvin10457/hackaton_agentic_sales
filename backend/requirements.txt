@@ -23,5 +23,6 @@ httpx
 langgraph
 langgraph-checkpoint-postgres
 google-genai
+openai
 numpy
 pyyaml

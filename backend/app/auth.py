@@ -136,21 +136,42 @@ def requiere_rol_ejecutivo(
     return user
 
 
+def _extraer_token_chat(
+    x_session_token: str | None,
+    authorization: str | None,
+) -> str | None:
+    """El token de sesión del chat puede llegar en dos headers equivalentes:
+      - X-Session-Token: <token>            (contrato interno / tests de segregación)
+      - Authorization: Bearer <token>       (lo que envía el frontend web)
+    Ambos transportan el MISMO token opaco firmado con CHAT_TOKEN_SECRET, así
+    que la segregación se mantiene: sigue verificándose la firma y el vínculo a
+    la conversación, sin importar el header.
+    """
+    if x_session_token:
+        return x_session_token
+    if authorization and authorization.lower().startswith("bearer "):
+        return authorization[7:].strip()
+    return None
+
+
 def requiere_token_sesion(
     x_session_token: str | None = Header(default=None, alias="X-Session-Token"),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> int:
     """Dependency para /api/chat/*: token opaco firmado con CHAT_TOKEN_SECRET.
     Devuelve conversacion_id extraído del token.
     El endpoint NUNCA acepta un conversacion_id arbitrario del cliente.
+    Acepta el token en X-Session-Token o en Authorization: Bearer (frontend web).
     """
-    if not x_session_token:
+    token = _extraer_token_chat(x_session_token, authorization)
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Se requiere el header X-Session-Token.",
+            detail="Se requiere el token de sesión (X-Session-Token o Bearer).",
         )
     try:
-        payload = jwt.decode(x_session_token, CHAT_TOKEN_SECRET, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, CHAT_TOKEN_SECRET, algorithms=[ALGORITHM])
         tipo = payload.get("tipo")
         conv_id = payload.get("sub")
         if tipo != "sesion_chat" or conv_id is None:
@@ -167,7 +188,7 @@ def requiere_token_sesion(
     if (
         conversacion is None
         or conversacion.ended_at is not None
-        or conversacion.token_sesion != x_session_token
+        or conversacion.token_sesion != token
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
