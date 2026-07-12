@@ -1,0 +1,18 @@
+-- Migración rápida para instalaciones PostgreSQL existentes.
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS objetivo VARCHAR(50);
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS horizonte VARCHAR(20);
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS pidio_asesor BOOLEAN DEFAULT FALSE;
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS mensajes_intercambiados INTEGER DEFAULT 0;
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS completo_quiz BOOLEAN DEFAULT FALSE;
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS monto_declarado_usd DOUBLE PRECISION;
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS experiencia_inversion VARCHAR(30);
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS perfil_riesgo VARCHAR(50);
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS num_colaboradores INTEGER;
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS presupuesto_capacitacion_usd DOUBLE PRECISION;
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS es_decisor BOOLEAN DEFAULT FALSE;
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS solicito_propuesta BOOLEAN DEFAULT FALSE;
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS documento_valido BOOLEAN DEFAULT FALSE;
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS ruc_valido BOOLEAN DEFAULT FALSE;
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS email_valido BOOLEAN DEFAULT FALSE;
+ALTER TABLE senales_lead ADD COLUMN IF NOT EXISTS email_corporativo BOOLEAN DEFAULT FALSE;
+ALTER TABLE acciones_propuestas ADD COLUMN IF NOT EXISTS motivo_rechazo TEXT;

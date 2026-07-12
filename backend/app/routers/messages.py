@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from auth import get_db
-from models import Message, Conversation
-from schemas import MessageCreate, MessageRead, MessageUpdate
+from app.auth import get_db, requiere_rol_ejecutivo
+from app.models import Message, Conversation
+from app.schemas import MessageCreate, MessageRead, MessageUpdate
 
 router = APIRouter(prefix="/messages", tags=["Messages"])
 
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/messages", tags=["Messages"])
 
 # ── CRUD ────────────────────────────────────────────────────────────────────
 
-@router.post("/", response_model=MessageRead, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=MessageRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(requiere_rol_ejecutivo)])
 def create_message(payload: MessageCreate, db: Session = Depends(get_db)):
     conv = db.query(Conversation).filter(Conversation.id == payload.conversation_id).first()
     if not conv:
@@ -27,7 +27,7 @@ def create_message(payload: MessageCreate, db: Session = Depends(get_db)):
     return message
 
 
-@router.get("/", response_model=list[MessageRead])
+@router.get("/", response_model=list[MessageRead], dependencies=[Depends(requiere_rol_ejecutivo)])
 def list_messages(
     skip: int = 0,
     limit: int = 100,
@@ -40,7 +40,7 @@ def list_messages(
     return query.offset(skip).limit(limit).all()
 
 
-@router.get("/{message_id}", response_model=MessageRead)
+@router.get("/{message_id}", response_model=MessageRead, dependencies=[Depends(requiere_rol_ejecutivo)])
 def get_message(message_id: int, db: Session = Depends(get_db)):
     message = db.query(Message).filter(Message.id == message_id).first()
     if not message:
@@ -48,7 +48,7 @@ def get_message(message_id: int, db: Session = Depends(get_db)):
     return message
 
 
-@router.patch("/{message_id}", response_model=MessageRead)
+@router.patch("/{message_id}", response_model=MessageRead, dependencies=[Depends(requiere_rol_ejecutivo)])
 def update_message(message_id: int, payload: MessageUpdate, db: Session = Depends(get_db)):
     message = db.query(Message).filter(Message.id == message_id).first()
     if not message:
@@ -60,7 +60,7 @@ def update_message(message_id: int, payload: MessageUpdate, db: Session = Depend
     return message
 
 
-@router.delete("/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{message_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(requiere_rol_ejecutivo)])
 def delete_message(message_id: int, db: Session = Depends(get_db)):
     message = db.query(Message).filter(Message.id == message_id).first()
     if not message:

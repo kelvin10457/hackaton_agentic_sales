@@ -1,0 +1,386 @@
+================================================================================
+         CONTEXTO TÉCNICO PARA AUDITAR EL BACKEND — Agentic Sales API
+================================================================================
+
+PROPÓSITO DE ESTE DOCUMENTO
+---------------------------
+Este archivo describe el estado REAL del backend tal como está implementado,
+su intención funcional y los puntos que deben revisarse. Está dirigido a un
+LLM que debe responder: «¿qué falta para que este backend sea un producto
+comercial seguro, coherente y listo para producción?». No asumir que algo está
+implementado solo porque aparezca como esquema, comentario o variable de
+entorno: distinguir siempre entre contrato declarado, endpoint expuesto,
+persistencia y comportamiento efectivo.
+
+Al auditar, entregar hallazgos priorizados (crítico, alto, medio, bajo) y, para
+cada uno, indicar: evidencia en este documento/código, riesgo o impacto,
+componente afectado y cambio concreto recomendado. Revisar seguridad, diseño
+de API, consistencia de datos, reglas de negocio, privacidad, operación,
+pruebas y mantenibilidad. No proponer una reescritura total si basta un cambio
+acotado.
+
+
+1. PRODUCTO Y ALCANCE
+---------------------
+La API FastAPI gestiona un flujo comercial B2C/B2B:
+
+1. Se crean y consultan leads enriquecidos (V2).
+2. Se registran señales comerciales.
+3. Un motor determinista calcula score, banda y ruta sugerida.
+4. Se registra consentimiento separado para datos y comunicaciones.
+5. Se crean acciones comerciales que un ejecutivo aprueba o rechaza.
+6. Se sincroniza el lead con un CRM simulado mediante upsert.
+7. Se usa una conversación de chat pública vinculada a un lead.
+8. Se registra auditoría y se mantiene un corpus documental aprobado.
+
+También persiste un CRUD anterior («legado») para usuarios, leads, mensajes y
+conversaciones. El legado usa las tablas `users`, `leads`, `conversations` y
+`messages`; la nueva consola usa principalmente `leads_v2` y tablas V2. Ambos
+mundos comparten `conversations.lead_id`, aunque el código lo trata como ID de
+`leads_v2` para las conversaciones comerciales. Esta coexistencia es un foco
+explícito de revisión.
+
+La especificación pública generada por FastAPI está en `/docs` y
+`/openapi.json`; el código Pydantic en `app/schemas.py` pretende ser la fuente
+de verdad de los contratos V2.
+
+
+2. EJECUCIÓN, DEPENDENCIAS Y CONFIGURACIÓN
+------------------------------------------
+Desde el directorio `backend/`:
+
+    bash start.sh
+
+El script ejecuta:
+
+    .venv/bin/python -m uvicorn app.main:app \
+      --host 0.0.0.0 --port 8000 --reload
+
+La API queda en `http://localhost:8000`. `GET /` devuelve
+`{"message":"API funcionando"}`. `GET /health` ejecuta `SELECT 1`; devuelve
+`200 {"ok": true}` si PostgreSQL responde y `503` con el detalle
+`Database unavailable` en caso contrario.
+
+Variables leídas actualmente:
+
+* `DATABASE_URL`: necesaria; se pasa directamente a SQLAlchemy `create_engine`.
+* `SECRET_KEY`: firma JWT de usuarios. Si no existe, el código usa el valor
+  inseguro por defecto `changeme`.
+* `ACCESS_TOKEN_EXPIRE_MINUTES`: por defecto 60.
+* `CHAT_TOKEN_SECRET`: firma tokens de chat. Si no existe, se usa
+  `chat-changeme`.
+* `CHAT_TOKEN_EXPIRE_HOURS`: por defecto 24.
+
+`README_ENV.md` menciona además `DEBUG`, `PORT`, `CRM_API_URL`, `CRM_API_KEY`
+y `SENTRY_DSN`, pero el backend actual no los consume. El puerto efectivo está
+fijado en `start.sh` a 8000.
+
+
+3. PERSISTENCIA Y MIGRACIONES
+-----------------------------
+Al importar `app/main.py`, se ejecuta `Base.metadata.create_all(bind=engine)`.
+Esto crea tablas inexistentes, pero no altera tablas existentes ni sustituye un
+sistema de migraciones versionado.
+
+Para una base ya existente, el orden documentado de scripts es:
+
+    migrations/add_v2_tables.sql
+    migrations/add_scoring_cv5.sql
+    migrations/add_scoring_contrato.sql
+    migrations/add_rol_token_sesion.sql
+    migrations/add_auditoria.sql
+    migrations/fix_columnas_faltantes.sql
+    migrations/create_documento_corpus.sql
+    migrations/migrate_conversations_to_leads_v2.sql
+
+Las entidades persistidas son:
+
+* `users`: usuario con nombre, email único, hash bcrypt, rol y fecha de alta.
+* `leads`: entidad comercial legada, propiedad de un usuario. Contiene score y
+  estado provistos por el cliente, no el motor V2.
+* `conversations`: id, inicio, cierre opcional, token de sesión opcional y
+  `lead_id` entero. El modelo ya no declara una FK de `lead_id` a `leads_v2`.
+* `messages`: emisor, contenido, fecha y FK a conversación.
+* `leads_v2`: lead enriquecido; `email_normalizado` es único y se pretende usar
+  como clave de deduplicación del CRM.
+* `senales_lead` y `scores_lead`: una fila por `lead_id` (restricción unique).
+* `oportunidades`: una por lead V2 (FK y unique en `lead_id`).
+* `consentimientos`: una fila por lead V2, con dos finalidades independientes.
+* `acciones_propuestas`: propuesta comercial y snapshot JSON de señales.
+* `eventos_auditoria`: bitácora de inserción; no tiene FK para sobrevivir al
+  borrado de un lead.
+* `documento_corpus`: documento aprobado para conocimiento interno.
+
+Inconsistencias de esquema que deben evaluarse:
+
+* El contrato Pydantic de oportunidad contiene `fecha_cierre_estimada`, pero el
+  modelo `Oportunidad` no tiene esa columna.
+* Los comentarios de `schemas.py` dicen que señales y score no son tablas, pero
+  en realidad existen `senales_lead` y `scores_lead`.
+* `ConversacionV2` declara campos `canal` y `agente_id`, pero `conversations`
+  no los persiste; el endpoint público devuelve los valores fijos `web` y
+  `agente:cv5`.
+* `Conversation.lead` sigue teniendo una relación de solo lectura contra el
+  modelo legado `Lead`, mientras las rutas de conversaciones validan y consultan
+  `LeadV2`.
+
+
+4. SUPERFICIES, AUTENTICACIÓN Y AUTORIZACIÓN
+-------------------------------------------
+Existen tres superficies de API:
+
+1. Autenticación: `/auth/*`.
+2. Consola interna V2: `/api/consola/*`.
+3. Chat público: `/api/chat/*`.
+
+Hay, además, CRUD legado sin el prefijo V2: `/users`, `/leads`,
+`/conversations` y `/messages`.
+
+Autenticación de ejecutivo:
+
+* `POST /auth/register` crea un usuario. El registro no admite rol, por lo que
+  el valor por defecto de BD es `ejecutivo`.
+* `POST /auth/login` recibe formulario OAuth2 (`username` = email y
+  `password`) y emite JWT HS256 con `sub`, `rol` y expiración.
+* `GET /auth/me` requiere Bearer JWT válido.
+* Toda la consola requiere Bearer JWT con claim `rol == "ejecutivo"`. Un JWT
+  sin ese rol recibe 403 antes de consultar la base.
+
+Las contraseñas se hashean y verifican con `bcrypt` directo, truncando a 72
+bytes UTF-8. No se usa `passlib`.
+
+Autenticación de chat:
+
+* El ejecutivo solicita `POST /api/consola/conversaciones/{conv_id}/token-sesion`.
+* Se crea un JWT HS256 distinto, firmado con `CHAT_TOKEN_SECRET`, con `sub`
+  igual al ID de conversación, `tipo=sesion_chat` y expiración.
+* El token completo se guarda en `conversations.token_sesion`.
+* `/api/chat/*` requiere el header `X-Session-Token`; valida firma, tipo,
+  expiración, coincidencia exacta con el token guardado y que la conversación
+  no esté cerrada. En cualquier fallo devuelve 401.
+* Los JWT de ejecutivo y los tokens de chat no son intercambiables porque usan
+  secretos y dependencias distintos.
+
+Estado actual importante: los routers de CRUD legado no exigen autenticación ni
+autorización. Por tanto, una persona que alcance la API puede actualmente
+crear, listar, leer, modificar y borrar usuarios/leads/mensajes/conversaciones
+legados, además de consultar rutas legadas enriquecidas. Evaluar si esto expone
+indirectamente conversaciones V2, datos personales o score.
+
+
+5. ENDPOINTS Y COMPORTAMIENTO V2
+--------------------------------
+Todos los siguientes requieren JWT de ejecutivo salvo que se diga lo contrario.
+
+Leads V2:
+
+* `GET /api/consola/leads?skip=0&limit=100`: lista leads V2.
+* `POST /api/consola/leads`: crea lead V2; si existe el mismo
+  `email_normalizado`, devuelve 409. Registra `lead_creado`.
+* `GET /api/consola/leads/{lead_id}`: obtiene lead o 404.
+* No hay endpoint implementado para editar un lead V2, aunque el texto de
+  verificación de identidad indica usar PATCH sobre esa ruta.
+* `POST /api/consola/identidad/verificar`: valida algorítmicamente cédula o RUC
+  ecuatoriano; no consulta Registro Civil ni SRI y no cambia ningún lead.
+
+Señales y scoring:
+
+* `GET /api/consola/leads/{id}/senales`: devuelve las señales; si no hay fila,
+  devuelve señales neutras con `mensajes_intercambiados: 0`.
+* `PATCH /api/consola/leads/{id}/senales`: actualiza campos recibidos,
+  recalcula score y devuelve el score. Rechaza lead inexistente con 404.
+* El cliente no puede proporcionar `mensajes_intercambiados`: se calcula como
+  cantidad real de filas `messages` de conversaciones cuyo `lead_id` coincide.
+* El backend infiere validez de documento/email desde el lead, antes de calcular.
+* Si hay un cambio real, las acciones pendientes de ese lead pasan a `obsoleta`.
+  Si no hay cambio real y ya existe score, retorna el score sin obsoletar.
+* `GET /api/consola/leads/{id}/score`: devuelve el score existente, recalcula
+  desde señales si existen o devuelve un score neutro 0 aun cuando el ID no
+  corresponda a un lead existente.
+
+Fórmula efectiva actual (cada bloque se limita a 25):
+
+* Interés: +12 `pidio_asesor`; +7 por `completo_quiz` B2C o
+  `solicito_propuesta` B2B; +2 con 4–7 mensajes o +4 con 8+; +6 si objetivo es
+  `invertir` o `capacitar_equipo` B2B; +2 si objetivo es `aprender`.
+* Capacidad B2C: monto USD: 25 (>=25000), 20 (>=10000), 14 (>=3000),
+  8 (>=500), 3 (>0), 0 (sin monto). B2B: tamaño de empresa: 15 (>=200),
+  10 (>=50), 6 (>=10), 2 (menor); más 10 si presupuesto >=5000, 5 si >0.
+* Fit B2C: experiencia ninguna/básica=15, intermedia=10, avanzada=5; +6 por
+  documento válido y +4 por email válido. B2B: decisor=15 o 4 si no; +6 RUC
+  válido y +4 email corporativo.
+* Urgencia: inmediato=25, 1-3m=18, 3-6m=10, mas_6m=4, otro/ausente=0.
+* Total = suma (máximo 100). Banda efectiva: `caliente` >=70, `tibio` >=40,
+  `frio` <40. Aunque el enum declara `critico` para 90–100, el motor actual no
+  produce esa banda.
+* Ruta: B2B => `ventas_corporativas`; B2C >=70 => `asesoria_inversion` si pidió
+  asesor, si no `programa_inicial`; B2C 40–69 => `nutricion_educativa`; resto
+  => `automatico`. Solo se actualiza en una oportunidad ya existente.
+
+Oportunidades y CRM:
+
+* `GET /api/consola/leads/{id}/oportunidad`: 404 si no existe lead u
+  oportunidad. No hay endpoint directo para crear/editar oportunidad.
+* `POST /api/consola/crm/upsert` recibe `{ "lead_id": n }`.
+* Bloquea con 422 a un lead anónimo, sin email normalizado o sin consentimiento
+  de tratamiento de datos.
+* Usa `CRMSimulado`, una implementación local. Busca el lead por email
+  normalizado y crea o actualiza el contacto; también hace upsert de una sola
+  oportunidad local. No integra actualmente HubSpot, Salesforce ni una URL API
+  externa.
+* Registra evento `crm_upsert`; la respuesta indica IDs y si la oportunidad ya
+  existía antes (`creado`/`actualizado`).
+
+Consentimiento:
+
+* `GET /api/consola/leads/{id}/consentimiento`: devuelve estado neutro con
+  `id: 0` si no hay fila. No comprueba primero que el lead exista.
+* `POST /api/consola/leads/{id}/consentimiento`: upsert de dos finalidades:
+  `tratamiento_datos` habilita CRM y `comunicaciones_comerciales` habilita
+  aprobación de acciones. Registra eventos para finalidades otorgadas.
+* El payload real usa campos planos
+  `tratamiento_datos_otorgado`, `tratamiento_datos_canal`,
+  `comunicaciones_comerciales_otorgado`,
+  `comunicaciones_comerciales_canal`, `version_politica`; el contrato Pydantic
+  público las presenta como objetos `Otorgamiento`. IP y texto mostrado están
+  definidos en el esquema, pero no se reciben ni persisten.
+* El upsert permite cambiar posteriormente booleanos de consentimiento. Evaluar
+  las exigencias legales, trazabilidad y revocación.
+
+Acciones propuestas:
+
+* `GET /api/consola/leads/{id}/acciones`: lista acciones por fecha descendente.
+* `POST /api/consola/leads/{id}/acciones`: crea una acción en estado
+  `pendiente` con tipo, destinatario, mensaje, snapshot de señales y
+  `generado_por`; registra `accion_generada`. No valida explícitamente que el
+  lead de la URL exista ni que coincida con `payload.lead_id`.
+* `POST /api/consola/acciones/{id}/aprobar`: exige consentimiento de
+  comunicaciones; rechaza acción obsoleta con 409 y solo permite estados
+  pendiente o rechazada. Guarda ejecutivo revisor y registra auditoría.
+* `POST /api/consola/acciones/{id}/rechazar`: solo permite pendiente, requiere
+  `motivo_rechazo`, pasa la acción a rechazada y el lead a `nutricion`.
+* No existe envío real de email, WhatsApp, llamada, reunión o CRM: aprobar no
+  ejecuta la acción ni la transiciona a `ejecutada`.
+
+Auditoría y corpus:
+
+* `GET /api/consola/leads/{id}/auditoria?skip=&limit=` devuelve eventos del
+  lead, más recientes primero.
+* `POST /api/consola/auditoria` permite que el ejecutivo inserte un evento. No
+  hay rutas PATCH ni DELETE en la consola para esta tabla, pero la garantía
+  append-only depende de la aplicación y permisos de BD, no de un mecanismo de
+  base de datos descrito aquí.
+* `GET /api/consola/corpus` lista documentos aprobados.
+* `POST /api/consola/corpus` inserta documento. No hay edición, borrado,
+  búsqueda semántica, autorización de aprobador, versionado operativo ni uso
+  del corpus por el chat/agente.
+
+Conversaciones V2 y chat público:
+
+* `POST /conversations/` crea una conversación para un `lead_id` que debe
+  existir en `leads_v2`. Esta ruta es legada y no exige JWT.
+* `PATCH /conversations/{id}` puede establecer `ended_at`; al cerrar, el token
+  de chat deja de servir (401).
+* `POST /api/consola/conversaciones/{id}/token-sesion` emite/reemplaza token
+  para cualquier conversación existente, incluso si está cerrada al momento de
+  emitirlo; luego el chat la rechaza por cerrada.
+* `GET /api/chat/conversacion` usa exclusivamente el ID embebido en el header y
+  devuelve solo esa conversación, sus mensajes y el token enmascarado como
+  `[redacted]`.
+* `POST /api/chat/mensajes?contenido=...` crea un mensaje con `sender="lead"`.
+  El texto va como query parameter, no como cuerpo JSON. No hay respuesta de IA,
+  endpoint de mensaje del agente, validación de longitud/contenido ni rate
+  limiting descritos.
+
+
+6. CRUD LEGADO DISPONIBLE
+------------------------
+Estas rutas están activas y actualmente no requieren autenticación:
+
+* `/users`: POST, GET, GET por ID, PATCH, DELETE; incluye
+  `GET /users/{id}/stats`.
+* `/leads`: POST, GET, GET por ID, PATCH, DELETE; la lista puede filtrar por
+  `user_id` y ordenar por actividad. Incluye `/full` y `/timeline`.
+* `/conversations`: POST, GET (filtros `lead_id`, `active`), GET individual,
+  GET `/{id}/messages`, PATCH y DELETE.
+* `/messages`: POST, GET (filtro `conversation_id`), GET individual, PATCH y
+  DELETE.
+
+Aunque sus esquemas no devuelven password, estas rutas permiten modificar
+cuentas, mensajes y conversaciones. El modelo legado de lead y las rutas V2 no
+son equivalentes: usan campos y reglas distintas.
+
+
+7. IDENTIDAD, PRIVACIDAD Y REGLAS CRÍTICAS
+-----------------------------------------
+Validación de identidad:
+
+* `validar_cedula` usa módulo 10 para una cédula ecuatoriana de 10 dígitos.
+* `validar_ruc` soporta RUC natural, jurídico privado y público mediante las
+  reglas indicadas en `validators.py`.
+* La verificación es algorítmica; no demuestra identidad real.
+* `LeadV2Create` valida `cedula` o RUC si se proporciona. No hay implementación
+  de PATCH V2 para actualizar el documento o estado de identidad.
+
+Reglas que se intentan aplicar:
+
+* Lead con `estado_identificacion="anonimo"` no puede llegar al CRM.
+* CRM requiere email y consentimiento de tratamiento de datos.
+* Aprobar una acción exige consentimiento de comunicaciones comerciales.
+* Toda modificación efectiva de señales recalcula score y vuelve obsoletas las
+  acciones pendientes.
+* La auditoría se concibe como append-only.
+* El chat no acepta `conversation_id` del cliente y no expone score,
+  oportunidad, auditoría ni listados V2.
+
+Revisar especialmente si estas reglas se mantienen cuando se usan rutas
+legadas, acceso directo a BD, condiciones de carrera, IDs inexistentes o
+payloads maliciosos.
+
+
+8. SEMILLAS Y PRUEBAS
+--------------------
+Las semillas se cargan con:
+
+    .venv/bin/python -m app.seed
+
+Se describen como idempotentes. María Villacís y Andrés Cordero se recalculan
+con el motor, no con valores forzados:
+
+* María: interés 25 + capacidad 20 + fit 25 + urgencia 18 = 88, caliente.
+* Andrés: interés 10 + capacidad 20 + fit 25 + urgencia 10 = 65, tibio.
+
+Las pruebas se ejecutan con:
+
+    .venv/bin/python -m pytest app/tests -v
+
+La suite existente cubre identidad, idempotencia de CRM, consentimiento,
+validaciones, superficies, consola/leads y scoring. El auditor debe revisar si
+hay pruebas de autorización del CRUD legado, regresiones de migración,
+transacciones/concurrencia, expiración/rotación de tokens, validación de
+entradas, errores de BD, integración CRM real, privacidad, carga y recuperación
+ante fallos.
+
+
+9. RESULTADO ESPERADO DEL LLM AUDITOR
+------------------------------------
+Responder en este formato:
+
+1. Resumen ejecutivo: estado de madurez y los 3–5 mayores riesgos.
+2. Tabla de faltantes o defectos: prioridad, evidencia, impacto, corrección
+   propuesta y criterio verificable de aceptación.
+3. Separar claramente:
+   - funcionalidades ausentes;
+   - inconsistencias ya presentes entre código, esquema, migraciones y README;
+   - riesgos de seguridad/privacidad;
+   - deuda operativa para producción;
+   - pruebas que faltan.
+4. Proponer un orden de implementación mínimo viable y señalar decisiones de
+   producto/negocio que requieren confirmación humana (por ejemplo, política de
+   retención, CRM objetivo, roles permitidos, consentimiento legal y qué rutas
+   legadas deben conservarse).
+
+No inventar integraciones, modelos de IA, proveedores de mensajería ni
+requisitos regulatorios que no estén definidos. Si falta una decisión para
+evaluar algo, formularla como pregunta abierta y explicar por qué bloquea la
+implementación.

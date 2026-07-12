@@ -3,9 +3,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from auth import get_db
-from models import Lead, User
-from schemas import (
+from app.auth import get_db, requiere_rol_ejecutivo
+from app.models import Lead, User
+from app.schemas import (
     LeadCreate, LeadRead, LeadUpdate,
     LeadWithConversations, ConversationSummary,
     TimelineMessage, LeadActivity,
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/leads", tags=["Leads"])
 
 # ── CRUD ────────────────────────────────────────────────────────────────────
 
-@router.post("/", response_model=LeadRead, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=LeadRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(requiere_rol_ejecutivo)])
 def create_lead(payload: LeadCreate, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == payload.user_id).first()
     if not user:
@@ -31,7 +31,7 @@ def create_lead(payload: LeadCreate, db: Session = Depends(get_db)):
     return lead
 
 
-@router.get("/", response_model=list[LeadActivity])
+@router.get("/", response_model=list[LeadActivity], dependencies=[Depends(requiere_rol_ejecutivo)])
 def list_leads(
     skip: int = 0,
     limit: int = 100,
@@ -69,7 +69,7 @@ def list_leads(
     return result
 
 
-@router.get("/{lead_id}/full", response_model=LeadWithConversations)
+@router.get("/{lead_id}/full", response_model=LeadWithConversations, dependencies=[Depends(requiere_rol_ejecutivo)])
 def get_lead_full(lead_id: int, db: Session = Depends(get_db)):
     """Lead con resumen de todas sus conversaciones (message_count + último mensaje)."""
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
@@ -96,7 +96,7 @@ def get_lead_full(lead_id: int, db: Session = Depends(get_db)):
     )
 
 
-@router.get("/{lead_id}/timeline", response_model=list[TimelineMessage])
+@router.get("/{lead_id}/timeline", response_model=list[TimelineMessage], dependencies=[Depends(requiere_rol_ejecutivo)])
 def get_lead_timeline(lead_id: int, db: Session = Depends(get_db)):
     """Todos los mensajes del lead ordenados cronológicamente, agrupados por conversación."""
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
@@ -120,7 +120,7 @@ def get_lead_timeline(lead_id: int, db: Session = Depends(get_db)):
     return timeline
 
 
-@router.get("/{lead_id}", response_model=LeadRead)
+@router.get("/{lead_id}", response_model=LeadRead, dependencies=[Depends(requiere_rol_ejecutivo)])
 def get_lead(lead_id: int, db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
@@ -128,7 +128,7 @@ def get_lead(lead_id: int, db: Session = Depends(get_db)):
     return lead
 
 
-@router.patch("/{lead_id}", response_model=LeadRead)
+@router.patch("/{lead_id}", response_model=LeadRead, dependencies=[Depends(requiere_rol_ejecutivo)])
 def update_lead(lead_id: int, payload: LeadUpdate, db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
@@ -140,7 +140,7 @@ def update_lead(lead_id: int, payload: LeadUpdate, db: Session = Depends(get_db)
     return lead
 
 
-@router.delete("/{lead_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{lead_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(requiere_rol_ejecutivo)])
 def delete_lead(lead_id: int, db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:

@@ -1,16 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from auth import hash_password, get_db
-from models import User
-from schemas import UserCreate, UserRead, UserUpdate, UserStats
+from app.auth import hash_password, get_db, requiere_rol_ejecutivo
+from app.models import User
+from app.schemas import UserCreate, UserRead, UserUpdate, UserStats
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
 # ── CRUD ────────────────────────────────────────────────────────────────────
 
-@router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED, dependencies=[Depends(requiere_rol_ejecutivo)])
 def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
@@ -27,12 +27,12 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     return user
 
 
-@router.get("/", response_model=list[UserRead])
+@router.get("/", response_model=list[UserRead], dependencies=[Depends(requiere_rol_ejecutivo)])
 def list_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return db.query(User).offset(skip).limit(limit).all()
 
 
-@router.get("/{user_id}/stats", response_model=UserStats)
+@router.get("/{user_id}/stats", response_model=UserStats, dependencies=[Depends(requiere_rol_ejecutivo)])
 def get_user_stats(user_id: int, db: Session = Depends(get_db)):
     """Dashboard de estadísticas: leads por estado, conversaciones activas y mensajes totales."""
     user = db.query(User).filter(User.id == user_id).first()
@@ -62,7 +62,7 @@ def get_user_stats(user_id: int, db: Session = Depends(get_db)):
     )
 
 
-@router.get("/{user_id}", response_model=UserRead)
+@router.get("/{user_id}", response_model=UserRead, dependencies=[Depends(requiere_rol_ejecutivo)])
 def get_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -70,7 +70,7 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     return user
 
 
-@router.patch("/{user_id}", response_model=UserRead)
+@router.patch("/{user_id}", response_model=UserRead, dependencies=[Depends(requiere_rol_ejecutivo)])
 def update_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -85,7 +85,7 @@ def update_user(user_id: int, payload: UserUpdate, db: Session = Depends(get_db)
     return user
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(requiere_rol_ejecutivo)])
 def delete_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
