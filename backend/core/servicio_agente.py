@@ -88,8 +88,9 @@ def _detectar_modo(mensaje: str, historial: list[dict]) -> str:
             if m.get("fuentes"):
                 return "TUTOR"
             break
-    # Mensaje inicial ambiguo y corto → tutor (menos invasivo que vender).
-    return "PROSPECTO" if len(texto.split()) > 6 else "TUTOR"
+    # Ambiguo (p. ej. un saludo) → PROSPECTO: evita disparar un G2 innecesario.
+    # TUTOR solo se activa con keywords financieras explícitas.
+    return "PROSPECTO"
 
 
 # ── Utilidades de fuentes ─────────────────────────────────────────────────────

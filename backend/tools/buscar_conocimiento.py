@@ -62,7 +62,8 @@ def _parsear_documento(ruta: Path) -> Optional[dict]:
 def _extraer_keywords(texto: str) -> set[str]:
     """Extrae palabras significativas del texto para búsqueda."""
     palabras = texto.lower().replace(",", " ").replace(".", " ").split()
-    return {p for p in palabras if len(p) > 3 and p not in _STOP_WORDS}
+    # >= 3: términos clave del corpus como "etf" tienen exactamente 3 letras.
+    return {p for p in palabras if len(p) >= 3 and p not in _STOP_WORDS}
 
 
 def _score_relevancia(doc: dict, keywords_busqueda: set[str]) -> int:

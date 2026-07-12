@@ -7,20 +7,26 @@ import { etiqueta } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Banda, ScoreLead } from '@/lib/types';
 
+// El motor de scoring solo emite 3 bandas (Biblia §5.5). "critico" existe en el
+// enum del backend, así que se mapea igual que "caliente" para que la UI nunca
+// se quede sin estilo si algún día se usa.
 const BADGE_BANDA: Record<Banda, string> = {
   caliente: 'border-red-200 bg-red-50 text-red-700',
+  critico: 'border-red-200 bg-red-50 text-red-700',
   tibio: 'border-amber-200 bg-amber-50 text-amber-700',
   frio: 'border-blue-200 bg-blue-50 text-blue-700',
 };
 
 const DOT_BANDA: Record<Banda, string> = {
   caliente: 'bg-banda-caliente',
+  critico: 'bg-banda-caliente',
   tibio: 'bg-banda-tibio',
   frio: 'bg-banda-frio',
 };
 
 const BORDE_BANDA: Record<Banda, string> = {
   caliente: 'border-l-banda-caliente',
+  critico: 'border-l-banda-caliente',
   tibio: 'border-l-banda-tibio',
   frio: 'border-l-banda-frio',
 };

@@ -3,10 +3,14 @@
 import React from 'react';
 import { Flame, Target, Users } from 'lucide-react';
 
-import type { Banda, Lead } from '@/lib/types';
+import type { Lead } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-const DOT: Record<Banda, string> = {
+// La Biblia §5.5 define 3 bandas. "critico" existe en el enum del backend pero
+// el motor de scoring nunca lo emite; si apareciera, se cuenta como caliente.
+type BandaVisible = 'caliente' | 'tibio' | 'frio';
+
+const DOT: Record<BandaVisible, string> = {
   caliente: 'bg-banda-caliente',
   tibio: 'bg-banda-tibio',
   frio: 'bg-banda-frio',
@@ -52,8 +56,11 @@ function Kpi({
 
 export default function MiniDashboard({ leads }: { leads: Lead[] }) {
   const total = leads?.length ?? 0;
-  const porBanda: Record<Banda, number> = {
-    caliente: leads?.filter((l) => l.score?.banda === 'caliente').length ?? 0,
+  const porBanda: Record<BandaVisible, number> = {
+    caliente:
+      leads?.filter(
+        (l) => l.score?.banda === 'caliente' || l.score?.banda === 'critico'
+      ).length ?? 0,
     tibio: leads?.filter((l) => l.score?.banda === 'tibio').length ?? 0,
     frio: leads?.filter((l) => l.score?.banda === 'frio').length ?? 0,
   };
@@ -80,7 +87,7 @@ export default function MiniDashboard({ leads }: { leads: Lead[] }) {
           role="img"
           aria-label={`Distribución del pipeline: ${porBanda.caliente} calientes, ${porBanda.tibio} tibios, ${porBanda.frio} fríos`}
         >
-          {(Object.keys(porBanda) as Banda[]).map(
+          {(Object.keys(porBanda) as BandaVisible[]).map(
             (b) =>
               porBanda[b] > 0 && (
                 <div
@@ -92,7 +99,7 @@ export default function MiniDashboard({ leads }: { leads: Lead[] }) {
           )}
         </div>
         <div className="mt-1.5 flex items-center gap-3 text-[10px] font-medium text-muted-foreground">
-          {(Object.keys(porBanda) as Banda[]).map((b) => (
+          {(Object.keys(porBanda) as BandaVisible[]).map((b) => (
             <span key={b} className="flex items-center gap-1">
               <span className={cn('size-1.5 rounded-full', DOT[b])} aria-hidden="true" />
               {b === 'caliente' ? 'Caliente' : b === 'tibio' ? 'Tibio' : 'Frío'}

@@ -255,7 +255,19 @@ class Banda(str, Enum):
 
 
 class TipoAccion(str, Enum):
-    """Tipo de acción comercial propuesta por el agente."""
+    """Tipo de acción comercial propuesta por el agente.
+
+    Los 4 primeros son los de la Biblia §4.6 (fuente de verdad) y son los que
+    genera el agente y consume la consola (R4). Los de abajo son canales
+    genéricos que ya existían en la BD; se conservan para no invalidar filas
+    antiguas al deserializar (`TipoAccion(a.tipo)` en routers/consola.py).
+    """
+    # ── Biblia §4.6 ──────────────────────────────────────────────────────────
+    AGENDAR_REUNION             = "agendar_reunion"
+    ENVIAR_MATERIAL             = "enviar_material"
+    DERIVAR_ESPECIALISTA        = "derivar_especialista"
+    DERIVAR_A_VENTAS_CORPORATIVAS = "derivar_a_ventas_corporativas"
+    # ── Legacy (compatibilidad con datos ya persistidos) ─────────────────────
     LLAMADA          = "llamada"
     EMAIL            = "email"
     WHATSAPP         = "whatsapp"
@@ -496,7 +508,10 @@ class AccionPropuestaBase(BaseModel):
     lead_id: int
     tipo: TipoAccion
     destinatario: Destinatario
-    mensaje_sugerido: str
+    asunto: str | None = None           # Borrador: asunto (Biblia §4.6)
+    mensaje_sugerido: str               # Borrador: cuerpo
+    razonamiento: str | None = None     # Por qué el agente propone esto (criterio 3.2)
+    fuentes_consultadas: list[str] = Field(default_factory=list)  # Citas del corpus
     snapshot_senales: Senales           # Copia de señales al momento de generarla
     generado_por: str                   # "agente:<nombre>" o email del ejecutivo
 

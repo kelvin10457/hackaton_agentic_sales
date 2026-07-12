@@ -22,13 +22,20 @@ interface PipelineTableProps {
   onSelectLead: (lead: Lead) => void;
 }
 
+// Una fila puede traer cualquier banda del enum del backend, así que DOT las
+// cubre todas. El motor solo emite 3 (Biblia §5.5); "critico" se pinta como
+// caliente para que nunca quede una fila sin color.
 const DOT: Record<Banda, string> = {
   caliente: 'bg-banda-caliente',
+  critico: 'bg-banda-caliente',
   tibio: 'bg-banda-tibio',
   frio: 'bg-banda-frio',
 };
 
-const FILTROS: { valor: Banda | 'todas'; texto: string }[] = [
+// Los chips de filtro solo ofrecen las 3 bandas reales.
+type FiltroBanda = 'todas' | 'caliente' | 'tibio' | 'frio';
+
+const FILTROS: { valor: FiltroBanda; texto: string }[] = [
   { valor: 'todas', texto: 'Todas' },
   { valor: 'caliente', texto: 'Caliente' },
   { valor: 'tibio', texto: 'Tibio' },
@@ -42,26 +49,34 @@ export default function PipelineTable({
   selectedLeadId,
   onSelectLead,
 }: PipelineTableProps) {
-  const [banda, setBanda] = useState<Banda | 'todas'>('todas');
+  const [banda, setBanda] = useState<FiltroBanda>('todas');
   const [busqueda, setBusqueda] = useState('');
   const [sorting, setSorting] = useState<SortingState>([{ id: 'score', desc: true }]);
+
+  // "critico" cuenta como caliente: son la misma acción para Carlos (llamar hoy).
+  const esBanda = (l: Lead, b: Exclude<FiltroBanda, 'todas'>) =>
+    b === 'caliente'
+      ? l.score?.banda === 'caliente' || l.score?.banda === 'critico'
+      : l.score?.banda === b;
 
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return leads.filter(
       (l) =>
-        (banda === 'todas' || l.score?.banda === banda) &&
+        (banda === 'todas' || esBanda(l, banda)) &&
         (q === '' || l.identidad.nombre.toLowerCase().includes(q))
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leads, banda, busqueda]);
 
-  const conteos = useMemo(
+  const conteos: Record<FiltroBanda, number> = useMemo(
     () => ({
       todas: leads.length,
-      caliente: leads.filter((l) => l.score?.banda === 'caliente').length,
-      tibio: leads.filter((l) => l.score?.banda === 'tibio').length,
-      frio: leads.filter((l) => l.score?.banda === 'frio').length,
+      caliente: leads.filter((l) => esBanda(l, 'caliente')).length,
+      tibio: leads.filter((l) => esBanda(l, 'tibio')).length,
+      frio: leads.filter((l) => esBanda(l, 'frio')).length,
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [leads]
   );
 

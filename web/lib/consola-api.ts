@@ -202,7 +202,10 @@ interface AccionPropuestaRaw {
   lead_id: number;
   tipo: string;
   destinatario: { email: string; nombre: string };
+  asunto: string | null;
   mensaje_sugerido: string;
+  razonamiento: string | null;
+  fuentes_consultadas: string[];
   snapshot_senales: Record<string, unknown>;
   generado_por: string;
   estado: string;
@@ -272,11 +275,14 @@ function mapAccion(raw: AccionPropuestaRaw): AccionPropuesta {
     destinatario: raw.destinatario,
     borrador: {
       canal: "email",
-      asunto: `Propuesta para lead #${raw.lead_id}`,
+      asunto: raw.asunto ?? "Comunicación de Futuro Academy",
       cuerpo: raw.mensaje_sugerido,
     },
-    razonamiento: raw.generado_por,
-    fuentes_consultadas: [],
+    // El razonamiento del agente es lo que Carlos lee antes de aprobar (criterio 3.2).
+    razonamiento:
+      raw.razonamiento ??
+      "El agente no registró un razonamiento para esta propuesta.",
+    fuentes_consultadas: raw.fuentes_consultadas ?? [],
     estado: raw.estado as EstadoAccion,
     revisado_por: raw.revisado_por,
     editado_por_humano: false,
@@ -292,6 +298,7 @@ function mapLead(
   },
   accion: AccionPropuesta | undefined,
   senales?: SenalesRaw | null,
+  rutaSugerida?: string | null,
 ): Lead {
   return {
     id: String(raw.id),
@@ -315,7 +322,8 @@ function mapLead(
         }
       : undefined,
     score,
-    ruta_sugerida: undefined,
+    // El "para que" de la HU1: lo calcula el backend (T12), nunca el frontend.
+    ruta_sugerida: rutaSugerida ?? undefined,
     consentimiento,
     ultima_actividad: raw.updated_at ?? raw.created_at,
     accion_propuesta: accion,
@@ -372,25 +380,33 @@ export async function fetchLeadDetalle(leadId: number): Promise<{
   lead: Lead;
   auditoria: EventoAuditoriaRaw[];
 }> {
-  const [raw, scoreRaw, senalesRaw, consentimientoRaw, accionesRaw, auditoria] =
-    await Promise.all([
-      apiFetch<LeadV2ReadRaw>(`/api/consola/leads/${leadId}`),
-      apiFetch<ScoreRaw>(`/api/consola/leads/${leadId}/score`).catch(
-        () => null
-      ),
-      apiFetch<SenalesRaw>(`/api/consola/leads/${leadId}/senales`).catch(
-        () => null
-      ),
-      apiFetch<ConsentimientoRaw>(
-        `/api/consola/leads/${leadId}/consentimiento`
-      ).catch(() => null),
-      apiFetch<AccionPropuestaRaw[]>(
-        `/api/consola/leads/${leadId}/acciones`
-      ).catch(() => [] as AccionPropuestaRaw[]),
-      apiFetch<EventoAuditoriaRaw[]>(
-        `/api/consola/leads/${leadId}/auditoria`
-      ).catch(() => [] as EventoAuditoriaRaw[]),
-    ]);
+  const [
+    raw,
+    scoreRaw,
+    senalesRaw,
+    consentimientoRaw,
+    accionesRaw,
+    auditoria,
+    oportunidadRaw,
+  ] = await Promise.all([
+    apiFetch<LeadV2ReadRaw>(`/api/consola/leads/${leadId}`),
+    apiFetch<ScoreRaw>(`/api/consola/leads/${leadId}/score`).catch(() => null),
+    apiFetch<SenalesRaw>(`/api/consola/leads/${leadId}/senales`).catch(
+      () => null
+    ),
+    apiFetch<ConsentimientoRaw>(
+      `/api/consola/leads/${leadId}/consentimiento`
+    ).catch(() => null),
+    apiFetch<AccionPropuestaRaw[]>(
+      `/api/consola/leads/${leadId}/acciones`
+    ).catch(() => [] as AccionPropuestaRaw[]),
+    apiFetch<EventoAuditoriaRaw[]>(
+      `/api/consola/leads/${leadId}/auditoria`
+    ).catch(() => [] as EventoAuditoriaRaw[]),
+    apiFetch<{ ruta_sugerida: string | null }>(
+      `/api/consola/leads/${leadId}/oportunidad`
+    ).catch(() => null),
+  ]);
 
   const score = scoreRaw ? mapScore(scoreRaw) : SCORE_VACIO;
   const consentimiento = consentimientoRaw
@@ -403,7 +419,14 @@ export async function fetchLeadDetalle(leadId: number): Promise<{
     accionesRaw.length > 0 ? mapAccion(accionesRaw[0]) : undefined;
 
   return {
-    lead: mapLead(raw, score, consentimiento, accionReciente, senalesRaw),
+    lead: mapLead(
+      raw,
+      score,
+      consentimiento,
+      accionReciente,
+      senalesRaw,
+      oportunidadRaw?.ruta_sugerida
+    ),
     auditoria,
   };
 }

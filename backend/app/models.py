@@ -261,7 +261,13 @@ class AccionPropuesta(Base):
     lead_id: Mapped[int] = mapped_column(Integer, index=True)  # sin FK para flexibilidad
     tipo: Mapped[str] = mapped_column(String(50))               # TipoAccion
     destinatario: Mapped[dict] = mapped_column(JSON)             # {email, nombre}
-    mensaje_sugerido: Mapped[str] = mapped_column(Text)
+    # Borrador editable (Biblia §4.6): asunto + cuerpo del correo.
+    asunto: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    mensaje_sugerido: Mapped[str] = mapped_column(Text)          # el cuerpo
+    # Por qué el agente propone esto — lo que Carlos lee antes de aprobar (criterio 3.2).
+    razonamiento: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Citas del corpus que respaldan la propuesta (Biblia §4.6).
+    fuentes_consultadas: Mapped[list | None] = mapped_column(JSON, nullable=True)
     snapshot_senales: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     generado_por: Mapped[str] = mapped_column(String(200))      # "agente:cv5" o email
     estado: Mapped[str] = mapped_column(String(50), default="pendiente")

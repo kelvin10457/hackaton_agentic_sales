@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 
 from app.database import Base, SessionLocal, engine
 from app.models import Consentimiento, LeadV2, SenalesLead, ScoreLead
-from app.scoring import upsert_score
+from app.propuestas import generar_accion_propuesta
+from app.scoring import upsert_score, ruta_sugerida
 
 
 SEMILLAS = [
@@ -90,7 +91,19 @@ def cargar_semillas() -> tuple[int, int]:
                 senales = SenalesLead(lead_id=lead.id, **item["senales"])
                 db.add(senales)
             db.flush()
-            upsert_score(db, lead.id, senales, lead.segmento)
+            score = upsert_score(db, lead.id, senales, lead.segmento)
+
+            # Cada lead sembrado necesita su AccionPropuesta pendiente: sin ella
+            # la consola no tiene nada que aprobar y el flujo de Carlos se rompe.
+            # Un lead anónimo no tiene titular a quien escribir → no se le genera.
+            if lead.estado_identificacion != "anonimo" and lead.email:
+                ruta = ruta_sugerida(
+                    lead.segmento, score.total, bool(senales.pidio_asesor)
+                )
+                generar_accion_propuesta(   # idempotente: no duplica al reejecutar
+                    db, lead.id, lead.nombre, lead.email, senales, score, ruta
+                )
+                db.commit()
     return creados, existentes
 
 
