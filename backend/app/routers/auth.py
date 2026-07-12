@@ -64,7 +64,7 @@ def login(
             detail="Credenciales incorrectas.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    token = create_access_token(data={"sub": str(user.id)})
+    token = create_access_token(data={"sub": str(user.id), "rol": user.rol})
     return {
         "access_token": token,
         "token_type": "bearer",
