@@ -1,9 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Checkbox } from "@/components/shared/checkbox"
+import { Button } from "@/components/shared/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/shared/card"
 
 export function ConsentimientoModal({ onComplete }: { onComplete: (datos: boolean, comercial: boolean) => void }) {
   const [datos, setDatos] = useState(false)

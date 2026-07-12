@@ -11,6 +11,13 @@ const config: Config = {
         border: "hsl(var(--border))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        futuro: {
+          base: '#031B4E',
+          corp: '#003E6B',
+          bg: '#F4F5F6',
+          accent: '#0084FF',
+          alert: '#D900C7',
+        },
       },
     },
   },
