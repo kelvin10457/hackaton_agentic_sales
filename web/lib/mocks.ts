@@ -1,21 +1,24 @@
 export const USE_MOCKS = true; // flag global
 
-export const mockRespuestaAgente = {
+import type { RespuestaAgente } from "./types";
+
+export const mockRespuestaAgente: RespuestaAgente = {
   mensaje: "Entiendo. ¿Con qué monto estarías pensando empezar?",
   fuentes: [],
   estado_flujo: "calificacion",
   badge_tipo: "B2C",
 };
 
-export const mockRespuestaTutor = {
+export const mockRespuestaTutor: RespuestaAgente = {
   mensaje: "Un ETF es un fondo que cotiza en bolsa y replica un índice...",
   fuentes: [{ cita_visible: "Futuro Academy - ETFs: qué son y qué no son §2" }],
   estado_flujo: "educacion",
 };
 
-export const mockNegativaHonesta = {
+export const mockNegativaHonesta: RespuestaAgente = {
   mensaje: "Eso no está cubierto en el material aprobado de Futuro Academy, y prefiero no darte un dato que no pueda respaldar.",
   fuentes: [],
+  estado_flujo: "educacion",
   guardrail: "G2",
 };
 

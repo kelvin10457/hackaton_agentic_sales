@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "types": "openapi-typescript $NEXT_PUBLIC_API_URL/openapi.json -o lib/api-types.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
