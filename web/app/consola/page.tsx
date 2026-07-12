@@ -1,78 +1,192 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import {
+    ArrowLeft,
+    GraduationCap,
+    LayoutDashboard,
+    LogOut,
+    Settings,
+} from 'lucide-react';
+
 import { mockLeads } from '@/lib/mocks-consola';
+import type { Lead } from '@/lib/types';
 import PipelineTable from '@/components/consola/PipelineTable';
 import LeadDetailPanel from '@/components/consola/LeadDetailPanel';
-import { PipelineSkeleton, DetailPanelSkeleton } from '@/components/consola/Skeletons';
 import MiniDashboard from '@/components/consola/MiniDashboard';
+import { PipelineSkeleton, DetailPanelSkeleton } from '@/components/consola/Skeletons';
+import { ToastProvider } from '@/components/shared/toast';
+import { LogoMark } from '@/components/shared/logo';
+import { cn } from '@/lib/utils';
 
-
+function NavIcon({
+    activo,
+    etiqueta,
+    children,
+}: {
+    activo?: boolean;
+    etiqueta: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <button
+            type="button"
+            aria-label={etiqueta}
+            title={etiqueta}
+            aria-current={activo ? 'page' : undefined}
+            className={cn(
+                'relative flex size-9 items-center justify-center rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 [&_svg]:size-[18px]',
+                activo
+                    ? 'bg-white/15 text-white'
+                    : 'text-white/50 hover:bg-white/10 hover:text-white'
+            )}
+        >
+            {activo && (
+                <span
+                    aria-hidden="true"
+                    className="absolute -left-2.5 h-5 w-0.5 rounded-full bg-futuro-accent"
+                />
+            )}
+            {children}
+        </button>
+    );
+}
 
 export default function ConsolaPage() {
-    // Estado para controlar qué lead está seleccionado actualmente
-    const [selectedLead, setSelectedLead] = useState<any | null>(null);
-
+    const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
     const [estaCargando, setEstaCargando] = useState(true);
 
-    // 2. Simula el tiempo de respuesta del servidor (1.5 segundos)
+    // Simula la latencia del servidor para exhibir los skeletons (regla 6)
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setEstaCargando(false);
-        }, 1000);
+        const timer = setTimeout(() => setEstaCargando(false), 800);
         return () => clearTimeout(timer);
     }, []);
 
-
     return (
-        <div className="flex h-screen bg-gray-50">
+        <ToastProvider>
+            <div className="flex h-dvh overflow-hidden bg-background">
+                {/* Rail de navegación (superficie interna con marca) */}
+                <aside className="hidden w-14 shrink-0 flex-col items-center gap-1.5 bg-futuro-base py-4 md:flex">
+                    <Link
+                        href="/"
+                        aria-label="Ir a la página principal"
+                        className="mb-4 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    >
+                        <LogoMark claro />
+                    </Link>
+                    <nav aria-label="Secciones de la consola" className="flex flex-col gap-1.5">
+                        <NavIcon activo etiqueta="Pipeline de leads">
+                            <LayoutDashboard aria-hidden="true" />
+                        </NavIcon>
+                        <NavIcon etiqueta="Academia (próximamente)">
+                            <GraduationCap aria-hidden="true" />
+                        </NavIcon>
+                        <NavIcon etiqueta="Configuración (próximamente)">
+                            <Settings aria-hidden="true" />
+                        </NavIcon>
+                    </nav>
+                    <Link
+                        href="/"
+                        aria-label="Salir de la consola"
+                        title="Salir de la consola"
+                        className="mt-auto flex size-9 items-center justify-center rounded-lg text-white/50 transition-colors duration-150 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    >
+                        <LogOut className="size-[18px]" aria-hidden="true" />
+                    </Link>
+                </aside>
 
-            {/* 
-        Menú Lateral (Placeholder súper básico para dar contexto visual) 
-        R3 (Chat/Shared) probablemente te pasará el layout final después.
-      */}
-            <aside className="w-16 bg-futuro-base flex flex-col items-center py-6 border-r border-futuro-corp shadow-lg z-20">
-                <div className="w-8 h-8 bg-futuro-accent rounded-lg flex items-center justify-center text-white font-bold mb-8 shadow-sm">
-                    F
-                </div>
-                <div className="w-8 h-8 bg-white/10 rounded-lg border border-white/20 mb-4 cursor-pointer hover:bg-white/20 transition-colors"></div>
-
-                <div className="w-8 h-8 bg-white/5 rounded-lg border border-white/10 cursor-pointer hover:bg-white/20 transition-colors"></div>
-            </aside>
-            {/* Contenedor Principal (Master-Detail) */}
-            <main className="flex-1 flex overflow-hidden">
-
-                {/* Panel Izquierdo: El Pipeline (Master) - 35% del ancho */}
-                <div className="w-1/3 min-w-[380px] max-w-[450px] flex-shrink-0 bg-white z-10 shadow-[4px_0_12px_rgba(0,0,0,0.03)] flex flex-col">
-                    {estaCargando ? (
-                        <PipelineSkeleton />
-                    ) : (
-                        <>
-                            {/* Aquí inyectamos el Mini Dashboard */}
-                            <MiniDashboard leads={mockLeads as any} />
-
-                            {/* Contenedor con scroll solo para la tabla */}
-                            <div className="flex-1 overflow-y-auto">
-                                <PipelineTable
-                                    leads={mockLeads as any}
-                                    selectedLeadId={selectedLead?.id || null}
-                                    onSelectLead={(lead) => setSelectedLead(lead)}
-                                />
+                <div className="flex min-w-0 flex-1 flex-col">
+                    {/* Cabecera: identidad del ejecutivo (login stub) */}
+                    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4">
+                        <div className="flex items-center gap-3">
+                            <LogoMark className="md:hidden" />
+                            <div>
+                                <h1 className="text-sm font-bold leading-tight text-futuro-base">
+                                    Consola del Ejecutivo
+                                </h1>
+                                <p className="hidden text-[11px] leading-tight text-muted-foreground sm:block">
+                                    Ninguna comunicación sale sin aprobación humana
+                                </p>
                             </div>
-                        </>
-                    )}
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                            <span className="hidden rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-block">
+                                Entorno demo
+                            </span>
+                            <div className="flex items-center gap-2.5 rounded-full border border-border py-1 pl-1 pr-3">
+                                <span
+                                    aria-hidden="true"
+                                    className="flex size-7 items-center justify-center rounded-full bg-futuro-base text-[11px] font-bold text-white"
+                                >
+                                    CP
+                                </span>
+                                <div className="leading-tight">
+                                    <p className="text-xs font-semibold text-foreground">Carlos Peña</p>
+                                    <p className="text-[10px] text-muted-foreground">
+                                        Ejecutivo comercial
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Master–detail: el pipeline nunca pierde el contexto */}
+                    <main className="flex min-h-0 flex-1">
+                        <section
+                            aria-label="Pipeline de leads"
+                            className="flex w-full min-w-0 flex-col border-r border-border bg-card lg:w-[420px] lg:shrink-0 xl:w-[460px]"
+                        >
+                            {estaCargando ? (
+                                <PipelineSkeleton />
+                            ) : (
+                                <>
+                                    <MiniDashboard leads={mockLeads} />
+                                    <PipelineTable
+                                        leads={mockLeads}
+                                        selectedLeadId={selectedLead?.id ?? null}
+                                        onSelectLead={setSelectedLead}
+                                    />
+                                </>
+                            )}
+                        </section>
+
+                        {/* Ficha (solo escritorio; en móvil se superpone) */}
+                        <section
+                            aria-label="Ficha del lead seleccionado"
+                            className="hidden min-w-0 flex-1 lg:block"
+                        >
+                            {estaCargando ? (
+                                <DetailPanelSkeleton />
+                            ) : (
+                                <LeadDetailPanel lead={selectedLead} />
+                            )}
+                        </section>
+                    </main>
                 </div>
 
-                {/* Panel Derecho: Ficha del Lead (Detail) - 65% del ancho */}
-                <div className="flex-1 bg-gray-50 overflow-hidden relative">
-                    {estaCargando ? (
-                        <DetailPanelSkeleton />
-                    ) : (
-                        <LeadDetailPanel lead={selectedLead} />
-                    )}
-                </div>
-
-            </main>
-        </div>
+                {/* Ficha en móvil/tablet: panel superpuesto con botón de volver */}
+                {selectedLead && !estaCargando && (
+                    <div className="fixed inset-0 z-40 flex animate-slide-in-right flex-col bg-background lg:hidden">
+                        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-2">
+                            <button
+                                type="button"
+                                onClick={() => setSelectedLead(null)}
+                                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                                <ArrowLeft className="size-4" aria-hidden="true" />
+                                Pipeline
+                            </button>
+                            <span className="truncate text-sm font-semibold text-foreground">
+                                {selectedLead.identidad.nombre}
+                            </span>
+                        </div>
+                        <div className="min-h-0 flex-1">
+                            <LeadDetailPanel lead={selectedLead} />
+                        </div>
+                    </div>
+                )}
+            </div>
+        </ToastProvider>
     );
 }

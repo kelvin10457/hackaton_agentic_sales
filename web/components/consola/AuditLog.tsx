@@ -1,190 +1,228 @@
 'use client';
 
 import React from 'react';
-import { Clock, Bot, User, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Bot, CheckCircle2, Clock, RotateCcw, ShieldAlert, User } from 'lucide-react';
 
-interface AuditLogProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  lead: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  accionSimulada?: { tipo: string, data: any } | null; // Nueva prop
-}
+import { CitationChip } from '@/components/shared/citation-chip';
+import { etiqueta, formatFechaLarga, formatHora, formatRelativo } from '@/lib/format';
+import { cn } from '@/lib/utils';
+import type { Lead } from '@/lib/types';
+import type { AccionRealizada } from './LeadDetailPanel';
 
 interface LogEntry {
-  hora: string;
-  fechaAbsoluta: string;
-  tiempoRelativo: string;
+  ts: string;
   actor: 'agente' | 'guardrail' | 'usuario' | 'ejecutivo';
   nombreActor: string;
   evento: string;
   metadato?: string;
+  fuentes?: string[];
   esHumano?: boolean;
+  esRechazo?: boolean;
 }
 
-export default function AuditLog({ lead, accionSimulada }: AuditLogProps) {
-  if (!lead) return null;
+/**
+ * La bitácora se construye desde los DATOS del lead (no strings sueltos):
+ * quién hizo qué, cuándo y con qué fuentes. Aquí se cierra la tesis:
+ * el agente propone — la persona decide, y queda registrado.
+ */
+function construirBitacora(lead: Lead): LogEntry[] {
+  const base = lead.ultima_actividad ?? new Date().toISOString();
+  const hace = (minutos: number) =>
+    new Date(new Date(base).getTime() - minutos * 60_000).toISOString();
 
-  // Datos simulados de la bitácora según el caso específico (Sección 6.5)
-  // Si es María Villacis (lead_001 o similar), cargamos la traza exacta exigida por el manual.
-  const esMaria = lead.identidad.nombre.includes('María') || lead.id === 'lead_001';
-  
-  const bitacoraMock: LogEntry[] = esMaria ? [
-    {
-      hora: "22:58",
-      fechaAbsoluta: "11 jul 2026, 22:58",
-      tiempoRelativo: "hace 14 min",
-      actor: "agente",
-      nombreActor: "Agente IA",
-      evento: "Propuso acción: agendar reunión",
-      metadato: "Fuentes: FA-003 §2, FA-009 §1"
-    },
-    {
-      hora: "22:54",
-      fechaAbsoluta: "11 jul 2026, 22:54",
-      tiempoRelativo: "hace 18 min",
-      actor: "usuario",
-      nombreActor: "María Villacis",
-      evento: "Otorgó consentimiento (Tratamiento de datos y Comunicaciones comerciales)"
-    },
-    {
-      hora: "22:53",
-      fechaAbsoluta: "11 jul 2026, 22:53",
-      tiempoRelativo: "hace 19 min",
-      actor: "agente",
-      nombreActor: "Agente IA",
-      evento: "Score recalculado automáticamente: 88",
-      metadato: "Banda: CALIENTE"
-    },
-    {
-      hora: "22:51",
-      fechaAbsoluta: "11 jul 2026, 22:51",
-      tiempoRelativo: "hace 21 min",
-      actor: "guardrail",
-      nombreActor: "Guardrail Financiero",
-      evento: "Activación de Negativa Honesta",
-      metadato: "Consulta bloqueada: 'bitcoin'"
-    },
-    {
-      hora: "22:49",
-      fechaAbsoluta: "11 jul 2026, 22:49",
-      tiempoRelativo: "hace 23 min",
-      actor: "guardrail",
-      nombreActor: "Guardrail de Asesoría",
-      evento: "Bloqueo de recomendación directa (No-asesoramiento)",
-      metadato: "Consulta mitigada: 'en qué invierto'"
-    }
-  ] : [
-    // Caso de Sofía u otros leads
-    {
-      hora: "17:15",
-      fechaAbsoluta: "11 jul 2026, 17:15",
-      tiempoRelativo: "hace 1 h",
-      actor: "usuario",
-      nombreActor: lead.identidad.nombre,
-      evento: "Negó consentimiento para comunicaciones comerciales (Solo canales informativos/quiz)"
-    },
-    {
-      hora: "17:12",
-      fechaAbsoluta: "11 jul 2026, 17:12",
-      tiempoRelativo: "hace 1 h",
-      actor: "agente",
-      nombreActor: "Agente IA",
-      evento: "Score recalculado automáticamente: 72",
-      metadato: "Banda: CALIENTE"
-    }
-  ];
-  const timelineActual = [...bitacoraMock];
-  if (accionSimulada) {
-    const esEdicion = accionSimulada.tipo === 'editar_aprobar';
-    const esRechazo = accionSimulada.tipo === 'rechazar';
-    
-    // Obtenemos la hora actual del navegador (Ecuador)
-    const horaActual = new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
+  const entradas: LogEntry[] = [];
+  const accion = lead.accion_propuesta;
+  const consentComercial =
+    lead.consentimiento?.comunicaciones_comerciales?.otorgado ?? false;
+  const consentDatos = lead.consentimiento?.tratamiento_datos?.otorgado ?? false;
 
-    timelineActual.unshift({
-      hora: horaActual,
-      fechaAbsoluta: `Hoy, ${horaActual}`,
-      tiempoRelativo: "hace un momento",
-      actor: "ejecutivo",
-      nombreActor: "Carlos Peña", // El usuario logueado en consola
-      evento: esRechazo 
-        ? "Rechazó la propuesta y devolvió el lead a nutrición"
-        : esEdicion 
-          ? "EDITÓ el borrador y APROBÓ el envío" 
-          : "APROBÓ la comunicación propuesta sin cambios",
-      metadato: accionSimulada.data?.motivo ? `Motivo: ${accionSimulada.data.motivo}` : undefined,
-      esHumano: true // Flag clave de la Sección 6.5
+  if (accion) {
+    entradas.push({
+      ts: hace(0),
+      actor: 'agente',
+      nombreActor: 'Agente IA',
+      evento: `Propuso acción: ${etiqueta(accion.tipo).toLowerCase()}`,
+      fuentes: accion.fuentes_consultadas,
     });
   }
 
-return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 font-sans">
-      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 flex items-center gap-2">
-        <Clock className="w-4 h-4 text-gray-400" /> Bitácora de Auditoría Completa
+  entradas.push({
+    ts: hace(4),
+    actor: 'usuario',
+    nombreActor: lead.identidad.nombre,
+    evento: consentComercial
+      ? 'Otorgó consentimiento (tratamiento de datos y comunicaciones comerciales)'
+      : consentDatos
+        ? 'Otorgó tratamiento de datos y negó comunicaciones comerciales'
+        : 'No otorgó consentimientos',
+  });
+
+  entradas.push({
+    ts: hace(5),
+    actor: 'agente',
+    nombreActor: 'Agente IA',
+    evento: `Score recalculado: ${lead.score?.total ?? 0}`,
+    metadato: `Banda: ${etiqueta(lead.score?.banda).toUpperCase()}`,
+  });
+
+  // Traza de guardrails de la demo de María (escena 1:00–1:20 del vídeo)
+  if (lead.id === 'lead_001') {
+    entradas.push({
+      ts: hace(7),
+      actor: 'guardrail',
+      nombreActor: 'Guardrail G2 · Negativa honesta',
+      evento: 'Consulta fuera del corpus aprobado — el agente respondió que no sabe',
+      metadato: 'Consulta: "bitcoin"',
+    });
+    entradas.push({
+      ts: hace(9),
+      actor: 'guardrail',
+      nombreActor: 'Guardrail G1 · No-asesoramiento',
+      evento: 'Bloqueo de recomendación de inversión directa',
+      metadato: 'Consulta: "en qué invierto"',
+    });
+  }
+
+  return entradas;
+}
+
+const ESTILO_ICONO: Record<LogEntry['actor'], string> = {
+  agente: 'border-futuro-ia/25 bg-futuro-ia/10 text-futuro-ia',
+  guardrail: 'border-red-200 bg-red-50 text-red-600',
+  usuario: 'border-border bg-muted text-muted-foreground',
+  ejecutivo: 'border-emerald-600 bg-emerald-500 text-white shadow-md',
+};
+
+const ETIQUETA_ACTOR: Record<LogEntry['actor'], string> = {
+  agente: 'IA',
+  guardrail: 'Guardrail',
+  usuario: 'Prospecto',
+  ejecutivo: 'Humano',
+};
+
+export default function AuditLog({
+  lead,
+  accionSimulada,
+}: {
+  lead: Lead;
+  accionSimulada?: AccionRealizada | null;
+}) {
+  if (!lead) return null;
+
+  const timeline = construirBitacora(lead);
+
+  if (accionSimulada) {
+    const esRechazo = accionSimulada.tipo === 'rechazar';
+    const esEdicion = accionSimulada.tipo === 'editar_aprobar';
+    timeline.unshift({
+      ts: new Date().toISOString(),
+      actor: 'ejecutivo',
+      nombreActor: 'Carlos Peña',
+      evento: esRechazo
+        ? 'Rechazó la propuesta y devolvió el lead a nutrición'
+        : esEdicion
+          ? 'Editó el borrador y aprobó el envío'
+          : 'Aprobó la comunicación propuesta sin cambios',
+      metadato: accionSimulada.data?.motivo
+        ? `Motivo: ${accionSimulada.data.motivo}`
+        : undefined,
+      esHumano: true,
+      esRechazo,
+    });
+  }
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <h3 className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+        <Clock className="size-4" aria-hidden="true" />
+        Bitácora de auditoría
       </h3>
 
-      <div className="relative border-l border-gray-200 ml-3 pl-6 space-y-6">
-        
-        {timelineActual.map((log, index) => {
-          let Icon = Bot;
-          let iconBg = 'bg-blue-50 text-blue-600 border-blue-100';
-
-          if (log.actor === 'guardrail') {
-            Icon = ShieldAlert;
-            iconBg = 'bg-red-50 text-red-600 border-red-100';
-          } else if (log.actor === 'usuario') {
-            Icon = User;
-            iconBg = 'bg-gray-100 text-gray-600 border-gray-200';
-          } else if (log.actor === 'ejecutivo') {
-            // Estilo destacado para la acción humana final
-            Icon = CheckCircle2;
-            iconBg = 'bg-green-500 text-white border-green-600 shadow-md transform scale-110';
-          }
+      <ol className="relative ml-2.5 space-y-5 border-l border-border pl-6">
+        {timeline.map((log, index) => {
+          let Icono: React.ElementType = Bot;
+          if (log.actor === 'guardrail') Icono = ShieldAlert;
+          if (log.actor === 'usuario') Icono = User;
+          if (log.actor === 'ejecutivo') Icono = log.esRechazo ? RotateCcw : CheckCircle2;
 
           return (
-            <div key={index} className="relative group">
-              <span className={`absolute -left-[37px] top-0.5 w-6 h-6 rounded-full border flex items-center justify-center shadow-sm z-10 transition-all ${iconBg}`}>
-                <Icon className="w-3 h-3" />
+            <li key={index} className="relative">
+              <span
+                className={cn(
+                  'absolute -left-[35px] top-0 flex size-6 items-center justify-center rounded-full border',
+                  ESTILO_ICONO[log.actor]
+                )}
+              >
+                <Icono className="size-3" aria-hidden="true" />
               </span>
 
-              {/* Si es una acción del ejecutivo, le damos un fondo especial sutil */}
-              <div className={`flex flex-col sm:flex-row sm:items-start justify-between gap-1 p-2 -mt-2 rounded-lg ${log.esHumano ? 'bg-green-50/50 border border-green-100' : 'bg-transparent'}`}>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-gray-800">{log.nombreActor}</span>
-                    <span className={`text-[11px] px-1.5 py-0.2 rounded font-mono uppercase tracking-tight ${log.esHumano ? 'bg-green-100 text-green-700 font-bold' : 'bg-gray-50 text-gray-400'}`}>
-                      {log.actor}
+              <div
+                className={cn(
+                  log.esHumano &&
+                    '-mx-2 -mt-1 rounded-lg bg-emerald-50/80 p-2 ring-1 ring-emerald-100'
+                )}
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                  <p className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+                    {log.nombreActor}
+                    <span
+                      className={cn(
+                        'rounded px-1.5 py-px text-[9px] font-bold uppercase tracking-wider',
+                        log.esHumano
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {ETIQUETA_ACTOR[log.actor]}
                     </span>
-                  </div>
-                  <p className={`text-sm mt-0.5 leading-relaxed ${log.esHumano ? 'text-green-800 font-medium' : 'text-gray-600'}`}>
-                    {log.evento}
                   </p>
-                  
-                  {log.metadato && (
-                    <p className="text-xs font-mono text-futuro-corp mt-1 bg-white px-2 py-1 rounded inline-block border border-gray-200">
-                      {log.metadato}
-                    </p>
-                  )}
+                  <time
+                    dateTime={log.ts}
+                    title={`${formatFechaLarga(log.ts)} · ${formatRelativo(log.ts)}`}
+                    className="font-mono text-[11px] tabular-nums text-muted-foreground"
+                  >
+                    {formatHora(log.ts)}
+                  </time>
                 </div>
 
-                <div className="text-right flex-shrink-0" title={log.fechaAbsoluta}>
-                  <span className="text-xs font-mono text-gray-400 block sm:inline">{log.hora}</span>
-                  <span className="text-[10px] text-gray-400 block sm:mt-0.5 italic">({log.tiempoRelativo})</span>
-                </div>
+                <p
+                  className={cn(
+                    'mt-0.5 text-[13px] leading-relaxed',
+                    log.esHumano ? 'font-medium text-emerald-900' : 'text-muted-foreground'
+                  )}
+                >
+                  {log.evento}
+                </p>
+
+                {log.metadato && (
+                  <p className="mt-1.5 inline-block rounded border border-border bg-muted/60 px-1.5 py-0.5 font-mono text-[11px] text-futuro-corp">
+                    {log.metadato}
+                  </p>
+                )}
+
+                {log.fuentes && log.fuentes.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {log.fuentes.map((fuente) => (
+                      <CitationChip key={fuente} cita={fuente} />
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
+            </li>
           );
         })}
-        
-        {/* 
-          Línea Base Inicial: Origen de la sesión 
-        */}
-        <div className="relative">
-          <span className="absolute -left-[33px] top-1 w-4 h-4 rounded-full border border-gray-200 bg-gray-50 z-10"></span>
-          <p className="text-xs font-medium text-gray-400 italic pl-1">Sesión iniciada en canal público</p>
-        </div>
 
-      </div>
-    </div>
+        {/* Origen de la sesión */}
+        <li className="relative">
+          <span
+            className="absolute -left-[33px] top-1 size-[18px] rounded-full border-2 border-border bg-card"
+            aria-hidden="true"
+          />
+          <p className="text-xs font-medium text-muted-foreground/80">
+            Sesión iniciada en el canal público (chat sin registro)
+          </p>
+        </li>
+      </ol>
+    </section>
   );
 }

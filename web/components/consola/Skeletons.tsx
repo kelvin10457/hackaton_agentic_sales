@@ -1,28 +1,42 @@
 'use client';
 
 import React from 'react';
+import { Skeleton } from '@/components/shared/skeleton';
 
-// Esqueleto para el panel izquierdo (Pipeline de Leads)
+/** Esqueleto del panel izquierdo: KPIs + filtros + filas del pipeline */
 export function PipelineSkeleton() {
   return (
-    <div className="w-full animate-pulse p-4">
-      {/* Cabecera simulada */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="h-6 bg-gray-200 rounded w-1/3"></div>
-        <div className="h-8 bg-gray-100 rounded w-24"></div>
+    <div className="flex h-full flex-col" aria-hidden="true">
+      <div className="border-b border-border p-3.5">
+        <Skeleton className="h-3 w-40" />
+        <div className="mt-3 grid grid-cols-3 gap-2.5">
+          <Skeleton className="h-20 rounded-xl" />
+          <Skeleton className="h-20 rounded-xl" />
+          <Skeleton className="h-20 rounded-xl" />
+        </div>
+        <Skeleton className="mt-3 h-1.5 w-full rounded-full" />
       </div>
-      
-      {/* Cabecera de la tabla */}
-      <div className="h-4 bg-gray-100 rounded w-full mb-4"></div>
-      
-      {/* Filas de la tabla simuladas */}
-      <div className="space-y-4">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i} className="flex gap-4 items-center p-3 border-b border-gray-50">
-            <div className="h-4 bg-gray-200 rounded w-1/3"></div>
-            <div className="h-4 bg-gray-100 rounded w-1/6"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/6"></div>
-            <div className="h-4 bg-gray-100 rounded w-1/4"></div>
+
+      <div className="border-b border-border p-3.5">
+        <div className="flex items-center justify-between gap-2">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-8 w-40 rounded-lg" />
+        </div>
+        <div className="mt-2.5 flex gap-1.5">
+          <Skeleton className="h-6 w-16 rounded-full" />
+          <Skeleton className="h-6 w-20 rounded-full" />
+          <Skeleton className="h-6 w-16 rounded-full" />
+          <Skeleton className="h-6 w-14 rounded-full" />
+        </div>
+      </div>
+
+      <div className="flex-1 space-y-0 overflow-hidden px-3.5 py-2">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <div key={i} className="flex h-11 items-center gap-4 border-b border-border/50">
+            <Skeleton className="h-3.5 w-2/5" />
+            <Skeleton className="h-3.5 w-10" />
+            <Skeleton className="ml-auto h-3.5 w-12" />
+            <Skeleton className="h-3.5 w-16" />
           </div>
         ))}
       </div>
@@ -30,38 +44,55 @@ export function PipelineSkeleton() {
   );
 }
 
-// Esqueleto para el panel derecho (Ficha del Lead)
+/** Esqueleto del panel derecho: cabecera + score + brief + acción */
 export function DetailPanelSkeleton() {
   return (
-    <div className="w-full animate-pulse p-6 space-y-6">
-      {/* Título y estado simulados */}
-      <div className="flex justify-between items-center mb-8 border-b border-gray-100 pb-4">
-        <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-        <div className="h-6 bg-gray-100 rounded w-24"></div>
-      </div>
-      
-      {/* Bloque A: Score simulado */}
-      <div className="h-48 bg-gray-50 rounded-xl border border-gray-100 p-6 flex flex-col justify-between">
-        <div className="h-5 bg-gray-200 rounded w-1/4 mb-4"></div>
-        <div className="space-y-3">
-          <div className="h-2 bg-gray-200 rounded w-full"></div>
-          <div className="h-2 bg-gray-200 rounded w-4/5"></div>
-          <div className="h-2 bg-gray-200 rounded w-full"></div>
+    <div className="flex h-full flex-col bg-background" aria-hidden="true">
+      <div className="border-b border-border bg-card px-6 py-4">
+        <div className="flex items-start gap-3">
+          <Skeleton className="size-11 rounded-xl" />
+          <div className="flex-1">
+            <Skeleton className="h-6 w-1/3" />
+            <Skeleton className="mt-2 h-3.5 w-1/2" />
+          </div>
+          <Skeleton className="h-6 w-28 rounded-full" />
         </div>
       </div>
 
-      {/* Bloque B: Brief simulado */}
-      <div className="h-32 bg-gray-50 rounded-xl border border-gray-100 p-6">
-         <div className="h-5 bg-gray-200 rounded w-1/3 mb-4"></div>
-         <div className="h-3 bg-gray-200 rounded w-full mb-2"></div>
-         <div className="h-3 bg-gray-200 rounded w-5/6"></div>
-      </div>
+      <div className="space-y-4 p-6">
+        <div className="rounded-xl border border-border bg-card p-5">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="mt-3 h-9 w-24" />
+          <div className="mt-5 space-y-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i}>
+                <div className="mb-1.5 flex justify-between">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-3 w-10" />
+                </div>
+                <Skeleton className="h-2 w-full rounded-full" />
+              </div>
+            ))}
+          </div>
+          <Skeleton className="mt-5 h-16 w-full rounded-lg" />
+        </div>
 
-      {/* Bloque C: Aprobación simulada */}
-      <div className="h-40 bg-gray-50 rounded-xl border border-gray-100 p-6">
-         <div className="h-5 bg-gray-200 rounded w-1/4 mb-4"></div>
-         <div className="h-10 bg-gray-200 rounded w-full mb-2"></div>
-         <div className="h-10 bg-gray-200 rounded w-full"></div>
+        <div className="rounded-xl border border-border bg-card p-5">
+          <Skeleton className="h-3 w-32" />
+          <Skeleton className="mt-3 h-14 w-full rounded-lg" />
+          <div className="mt-4 grid grid-cols-3 gap-4">
+            <Skeleton className="h-10" />
+            <Skeleton className="h-10" />
+            <Skeleton className="h-10" />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-5">
+          <Skeleton className="h-3 w-40" />
+          <Skeleton className="mt-3 h-20 w-full rounded-lg" />
+          <Skeleton className="mt-3 h-9 w-full rounded-lg" />
+          <Skeleton className="mt-3 h-28 w-full rounded-lg" />
+        </div>
       </div>
     </div>
   );

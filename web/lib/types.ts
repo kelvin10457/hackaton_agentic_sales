@@ -3,6 +3,8 @@
 
 export type TipoLead = "B2C" | "B2B" | null;
 
+export type PerfilRiesgo = "conservador" | "moderado" | "agresivo";
+
 export interface Fuente {
   cita_visible: string;
 }
@@ -13,6 +15,8 @@ export interface RespuestaAgente {
   estado_flujo: string; // "clasificacion" | "calificacion" | "educacion" | ...
   badge_tipo?: TipoLead;
   guardrail?: string;
+  /** El backend puede sugerir una acción de UI (p. ej. ofrecer el quiz) */
+  accion?: "proponer_quiz";
 }
 
 export interface PreguntaQuiz {
@@ -25,12 +29,18 @@ export interface Quiz {
   preguntas: PreguntaQuiz[];
 }
 
+export interface ResultadoQuiz {
+  perfil: PerfilRiesgo;
+  mensaje: string;
+}
+
 export interface MensajeChat {
   id: string;
   rol: "usuario" | "agente";
   texto: string;
   ts: string;
   fuentes?: Fuente[];
+  guardrail?: string;
 }
 
 export interface IniciarConversacionResponse {
@@ -41,6 +51,84 @@ export interface IniciarConversacionResponse {
 export interface ConversacionRecuperada {
   historial: MensajeChat[];
   preguntas_respondidas: string[];
-  quiz?: { iniciado: boolean; perfil_resultante?: string };
+  quiz?: { iniciado: boolean; perfil_resultante?: PerfilRiesgo };
   estado_flujo: string;
+  badge_tipo?: TipoLead;
+}
+
+/* ------------------------------------------------------------------ */
+/* Tipos de la consola (espejo de la Sección 5 del manual R4).         */
+/* También se reemplazan por los tipos generados cuando R2 publique.   */
+/* ------------------------------------------------------------------ */
+
+export type Banda = "caliente" | "tibio" | "frio";
+
+export interface ScoreLead {
+  interes: number;
+  presupuesto: number;
+  perfil: number;
+  urgencia: number;
+  total: number;
+  banda: Banda;
+  justificacion: string;
+}
+
+export interface ConsentimientoDetalle {
+  otorgado: boolean;
+  timestamp?: string;
+}
+
+export type TipoAccion =
+  | "agendar_reunion"
+  | "enviar_material"
+  | "derivar_especialista"
+  | "derivar_a_ventas_corporativas";
+
+export type EstadoAccion =
+  | "pendiente"
+  | "aprobada"
+  | "editada_y_aprobada"
+  | "rechazada"
+  | "obsoleta";
+
+export interface AccionPropuesta {
+  id: string;
+  lead_id?: string;
+  tipo: TipoAccion;
+  destinatario?: { email?: string; nombre?: string };
+  borrador: { canal: string; asunto: string; cuerpo: string };
+  razonamiento: string;
+  fuentes_consultadas: string[];
+  estado: EstadoAccion;
+  revisado_por?: string | null;
+  editado_por_humano?: boolean;
+}
+
+export interface Lead {
+  id: string;
+  tipo: "B2C" | "B2B";
+  estado_identificacion?: string;
+  etapa_embudo: string;
+  identidad: {
+    nombre: string;
+    email?: string;
+    documento?: string;
+    documento_valido?: boolean;
+    empresa?: string;
+  };
+  necesidad?: string;
+  objeciones?: string[];
+  senales?: {
+    perfil_riesgo?: PerfilRiesgo | string;
+    monto_declarado_usd?: number;
+    horizonte?: string;
+  };
+  score: ScoreLead;
+  ruta_sugerida?: string;
+  consentimiento: {
+    tratamiento_datos: ConsentimientoDetalle;
+    comunicaciones_comerciales: ConsentimientoDetalle;
+  };
+  ultima_actividad?: string;
+  accion_propuesta?: AccionPropuesta;
 }

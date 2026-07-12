@@ -1,58 +1,92 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Checkbox } from "@/components/shared/checkbox"
-import { Button } from "@/components/shared/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/shared/card"
+import { useState } from "react";
+import { ShieldCheck } from "lucide-react";
 
-export function ConsentimientoModal({ onComplete }: { onComplete: (datos: boolean, comercial: boolean) => void }) {
-  const [datos, setDatos] = useState(false)
-  const [comercial, setComercial] = useState(false)
+import { Checkbox } from "@/components/shared/checkbox";
+import { Button } from "@/components/shared/button";
+import { cn } from "@/lib/utils";
+
+/**
+ * CONTRATO 3 — Consentimiento POR FINALIDAD (LOPDP):
+ * 1. DOS casillas, no una: tratamiento de datos ≠ comunicaciones comerciales.
+ * 2. NUNCA premarcadas.
+ * 3. Rechazar ambas NO degrada el servicio: el tutor sigue funcionando igual.
+ */
+export function ConsentimientoModal({
+  email,
+  onComplete,
+}: {
+  email?: string;
+  onComplete: (datos: boolean, comercial: boolean) => void;
+}) {
+  const [datos, setDatos] = useState(false);
+  const [comercial, setComercial] = useState(false);
+
+  const opciones = [
+    {
+      id: "consent-datos",
+      checked: datos,
+      set: setDatos,
+      texto:
+        "Autorizo a Futuro Academy a tratar mis datos para enviarme mi resultado y material educativo.",
+    },
+    {
+      id: "consent-comercial",
+      checked: comercial,
+      set: setComercial,
+      texto:
+        "Autorizo que un asesor de Futuro Academy me contacte con información comercial.",
+    },
+  ];
 
   return (
-    <Card className="w-full max-w-md mx-auto my-4 border-2 border-[#003E6B]">
-      <CardHeader className="bg-[#F4F5F6] rounded-t-lg">
-        <CardTitle className="text-[#031B4E]">Antes de enviarte los resultados...</CardTitle>
-        <CardDescription className="text-gray-600">
-          Tu perfil salió moderado. ¿A qué correo te envío tu resultado y una ruta de aprendizaje de 3 pasos?
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6 pt-6">
-        
-        {/* Casilla 1: Tratamiento de Datos */}
-        <div className="flex items-start space-x-3">
-          <Checkbox 
-            id="datos" 
-            checked={datos} 
-            onCheckedChange={(c) => setDatos(c as boolean)} 
-            className="mt-1 border-[#0084FF] text-[#0084FF]"
-          />
-          <label htmlFor="datos" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-[#031B4E]">
-            Autorizo a Futuro Academy a tratar mis datos para enviarme mi resultado y material educativo.
-          </label>
-        </div>
+    <div className="my-2 w-full max-w-md animate-fade-up rounded-2xl border border-border bg-card p-4 shadow-sm sm:ml-9">
+      <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-futuro-corp">
+        <ShieldCheck className="size-3.5" aria-hidden="true" />
+        Tu autorización, por finalidad
+      </p>
+      <p className="mt-1 text-[13px] leading-snug text-muted-foreground">
+        Son dos permisos distintos{email ? ` para ${email}` : ""}. Ninguno viene
+        marcado.
+      </p>
 
-        {/* Casilla 2: Comunicaciones Comerciales */}
-        <div className="flex items-start space-x-3">
-          <Checkbox 
-            id="comercial" 
-            checked={comercial} 
-            onCheckedChange={(c) => setComercial(c as boolean)} 
-            className="mt-1 border-[#0084FF] text-[#0084FF]"
-          />
-          <label htmlFor="comercial" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-[#031B4E]">
-            Autorizo que un asesor de Futuro Academy me contacte con información comercial.
+      <fieldset className="mt-3 flex flex-col gap-2">
+        <legend className="sr-only">Consentimientos</legend>
+        {opciones.map((op) => (
+          <label
+            key={op.id}
+            htmlFor={op.id}
+            className={cn(
+              "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors duration-150",
+              op.checked
+                ? "border-futuro-accent bg-accent"
+                : "border-border hover:border-futuro-accent/40"
+            )}
+          >
+            <Checkbox
+              id={op.id}
+              checked={op.checked}
+              onCheckedChange={(c) => op.set(c === true)}
+              className="mt-0.5"
+            />
+            <span className="text-[13px] leading-snug text-foreground">
+              {op.texto}
+            </span>
           </label>
-        </div>
+        ))}
+      </fieldset>
 
-        {/* Botón CTA */}
-        <Button
-          onClick={() => onComplete(datos, comercial)}
-          className="w-full bg-[#0084FF] hover:bg-[#003E6B] text-white font-bold py-2 rounded transition-colors"
-        >
-          Enviar resultados
-        </Button>
-      </CardContent>
-    </Card>
-  )
+      <Button
+        onClick={() => onComplete(datos, comercial)}
+        variant="accent"
+        className="mt-3 w-full"
+      >
+        Confirmar elección
+      </Button>
+      <p className="mt-2 text-center text-[11px] leading-snug text-muted-foreground">
+        Puedes aceptar una, ambas o ninguna — el tutor seguirá disponible igual.
+      </p>
+    </div>
+  );
 }

@@ -1,186 +1,337 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { ShieldCheck, AlertTriangle, Phone, BookOpen, X, Edit3 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  BookOpen,
+  Bot,
+  Edit3,
+  Lock,
+  Mail,
+  MessageSquare,
+  Phone,
+  ShieldAlert,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
+
+import { Badge } from '@/components/shared/badge';
+import { Button } from '@/components/shared/button';
+import { Input } from '@/components/shared/input';
+import { Textarea } from '@/components/shared/textarea';
+import { CitationChip } from '@/components/shared/citation-chip';
+import { useToast } from '@/components/shared/toast';
+import { etiqueta } from '@/lib/format';
+import type { AccionPropuesta, Lead } from '@/lib/types';
 
 interface ApprovalBlockProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  lead: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onActionComplete?: (type: 'aprobar' | 'editar_aprobar' | 'rechazar', data: any) => void;
+  lead: Lead;
+  onActionComplete?: (
+    tipo: 'aprobar' | 'editar_aprobar' | 'rechazar',
+    data: { motivo?: string; asunto?: string; cuerpo?: string }
+  ) => void;
+}
+
+/** Propuesta de respaldo mientras R1 no entregue la real (H14) */
+function accionPorDefecto(lead: Lead): AccionPropuesta {
+  return {
+    id: `acc_${lead.id}`,
+    lead_id: lead.id,
+    tipo: 'agendar_reunion',
+    destinatario: { email: lead.identidad.email, nombre: lead.identidad.nombre },
+    borrador: {
+      canal: 'email',
+      asunto: 'Asesoría personalizada — Futuro Academy',
+      cuerpo: `Hola ${lead.identidad.nombre},\n\nHe revisado tu interés en nuestros programas de formación financiera. Te sugiero agendar una breve sesión de 15 minutos para estructurar tu ruta de aprendizaje de forma segura.\n\nSaludos cordiales,\nCarlos Peña · Futuro Academy`,
+    },
+    razonamiento: `Score ${lead.score?.total ?? 0} (${etiqueta(lead.score?.banda)}). Propuesta generada con la información disponible del lead.`,
+    fuentes_consultadas: [],
+    estado: 'pendiente',
+    revisado_por: null,
+    editado_por_humano: false,
+  };
 }
 
 export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockProps) {
-  // Simulación de una acción propuesta vinculada al lead (según Sección 5 del manual)
-  const accion = lead?.accion_propuesta || {
-    id: "acc_001",
-    tipo: "agendar_reunion",
-    razonamiento: `Score ${lead?.score?.total || 0} (${lead?.score?.banda || 'frio'}). Requiere contacto para profundizar en su perfil de riesgo y resolver dudas normativas.`,
-    fuentes_consultadas: ["FA-063 §2", "FA-009 §1"],
-    borrador: {
-      asunto: `Asesoría Personalizada - Futuro Academy`,
-      cuerpo: `Hola ${lead?.identidad?.nombre || 'Prospecto'},\n\nHe revisado tu interés en nuestros programas de formación financiera. Basado en tu perfil, te sugiero agendar una breve sesión de 15 minutos para estructurar tu ruta de aprendizaje de forma segura.\n\nSaludos cordiales,\nCarlos Peña`
-    },
-    estado: "pendiente"
-  };
+  const accion = useMemo(
+    () => lead.accion_propuesta ?? accionPorDefecto(lead),
+    [lead]
+  );
 
-  // Estados locales para permitir la edición del borrador
   const [asunto, setAsunto] = useState(accion.borrador.asunto);
   const [cuerpo, setCuerpo] = useState(accion.borrador.cuerpo);
   const [motivoRechazo, setMotivoRechazo] = useState('');
   const [mostrarRechazo, setMostrarRechazo] = useState(false);
+  const { toast } = useToast();
 
-  // Sincronizar el borrador cuando cambie el lead en el panel master-detail
-  /* eslint-disable react-hooks/exhaustive-deps */
+  // Resincroniza el borrador al cambiar de lead en el master–detail
   useEffect(() => {
     setAsunto(accion.borrador.asunto);
     setCuerpo(accion.borrador.cuerpo);
     setMostrarRechazo(false);
     setMotivoRechazo('');
-  }, [lead]);
-  /* eslint-enable react-hooks/exhaustive-deps */
+  }, [accion]);
 
-  if (!lead) return null;
+  // Verificación estricta: sin dato explícito, se asume NO consentido
+  const consentimientoComercial =
+    lead.consentimiento?.comunicaciones_comerciales?.otorgado ?? false;
+  const bloqueado = !consentimientoComercial;
+  const esObsoleta = accion.estado === 'obsoleta';
+  const editado =
+    asunto !== accion.borrador.asunto || cuerpo !== accion.borrador.cuerpo;
+  const camposDeshabilitados = bloqueado || esObsoleta;
 
-  // Verificación estricta del consentimiento comercial (Sección 6.4)
-  const tieneConsentimientoComercial = lead.consentimiento?.comunicaciones_comerciales?.otorgado ?? true;
-  
-  // Simulación de propuesta obsoleta (Regla 8: si el score es bajo o cambió de estado)
-  const esObsoleta = lead.etapa_embudo === 'Terminado'; 
+  function aprobar() {
+    const tipo = editado ? 'editar_aprobar' : 'aprobar';
+    onActionComplete?.(tipo, { asunto, cuerpo });
+    toast({
+      tipo: 'success',
+      titulo: editado ? 'Borrador editado y aprobado' : 'Comunicación aprobada',
+      descripcion: 'Envío simulado — registrado en la bitácora con tu autoría.',
+    });
+  }
+
+  function rechazar() {
+    onActionComplete?.('rechazar', { motivo: motivoRechazo.trim() });
+    toast({
+      tipo: 'info',
+      titulo: 'Propuesta rechazada',
+      descripcion: 'El lead vuelve a nutrición — no se descarta.',
+    });
+  }
+
+  function canalAlternativo(nombre: string) {
+    toast({
+      tipo: 'info',
+      titulo: `Canal alternativo: ${nombre}`,
+      descripcion: 'Disponible porque no requiere consentimiento comercial (demo).',
+    });
+  }
+
+  const idBloqueo = `bloqueo-${lead.id}`;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 font-sans">
-      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">
-        Acción Sugerida por el Agente
-      </h3>
+    <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          Acción propuesta por el agente
+        </h3>
+        <Badge variant={esObsoleta ? 'warning' : 'accent'}>
+          {etiqueta(accion.estado)}
+        </Badge>
+      </div>
 
-      {/* Alerta de Propuesta Obsoleta */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px]">
+        <Badge variant="secondary">{etiqueta(accion.tipo)}</Badge>
+        {accion.destinatario?.email && (
+          <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+            <Mail className="size-3.5 shrink-0" aria-hidden="true" />
+            <span className="truncate">
+              {accion.destinatario.nombre} · {accion.destinatario.email}
+            </span>
+          </span>
+        )}
+      </div>
+
+      {/* Aviso de propuesta obsoleta (coherencia de datos) */}
       {esObsoleta && (
-        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-          <span><strong>Propuesta obsoleta:</strong> Los datos del lead cambiaron desde que se generó este borrador.</span>
+        <div
+          role="alert"
+          className="mt-3 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3"
+        >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden="true" />
+          <p className="text-[13px] leading-relaxed text-amber-900">
+            <strong className="font-bold">Propuesta obsoleta:</strong> los datos del
+            lead cambiaron después de generar este borrador. El agente debe
+            regenerarla antes de cualquier decisión.
+          </p>
         </div>
       )}
 
-      {/* Razonamiento y Fuentes Consultadas (Sección 6.4) */}
-      <div className="mb-4 text-sm text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-100">
-        <p className="font-semibold text-gray-700 text-xs uppercase tracking-wider mb-1">Razonamiento de IA</p>
-        <p className="italic mb-3">&quot;{accion.razonamiento}&quot;</p>
-        <div className="flex flex-wrap gap-2 items-center text-xs text-gray-500">
-          <span className="font-medium">Fuentes auditadas:</span>
-          {accion.fuentes_consultadas.map((fuente: string, idx: number) => (
-            <span key={idx} className="bg-blue-50 text-futuro-corp px-2 py-0.5 rounded border border-blue-100 font-mono text-[11px]">
-              {fuente}
+      {/* Razonamiento del agente + fuentes (violeta = voz de la IA) */}
+      <div className="mt-3 rounded-lg border border-futuro-ia/15 bg-futuro-ia/5 p-3.5">
+        <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-futuro-ia">
+          <Bot className="size-3.5" aria-hidden="true" />
+          Razonamiento del agente
+        </p>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-foreground">
+          {accion.razonamiento}
+        </p>
+        {accion.fuentes_consultadas.length > 0 && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              Fuentes consultadas:
             </span>
-          ))}
-        </div>
+            {accion.fuentes_consultadas.map((fuente) => (
+              <CitationChip key={fuente} cita={fuente} />
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Formulario Editable del Borrador (Sección 6.4) */}
-      <div className="space-y-3 mb-6">
+      {/* Borrador editable: el humano puede corregir antes de aprobar */}
+      <div className="mt-4 space-y-3">
         <div>
-          <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Asunto de la Comunicación</label>
-          <input 
-            type="text" 
-            value={asunto} 
+          <label
+            htmlFor={`asunto-${accion.id}`}
+            className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
+          >
+            Asunto
+          </label>
+          <Input
+            id={`asunto-${accion.id}`}
+            value={asunto}
             onChange={(e) => setAsunto(e.target.value)}
-            disabled={!tieneConsentimientoComercial || esObsoleta}
-            className="w-full text-sm border-gray-200 rounded-lg focus:ring-futuro-corp focus:border-futuro-corp disabled:bg-gray-50 disabled:text-gray-400"
+            disabled={camposDeshabilitados}
           />
         </div>
         <div>
-          <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Cuerpo del Mensaje (Email)</label>
-          <textarea 
-            rows={5}
-            value={cuerpo} 
+          <label
+            htmlFor={`cuerpo-${accion.id}`}
+            className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
+          >
+            Cuerpo del mensaje · {accion.borrador.canal}
+          </label>
+          <Textarea
+            id={`cuerpo-${accion.id}`}
+            rows={7}
+            value={cuerpo}
             onChange={(e) => setCuerpo(e.target.value)}
-            disabled={!tieneConsentimientoComercial || esObsoleta}
-            className="w-full text-sm border-gray-200 rounded-lg font-mono text-xs focus:ring-futuro-corp focus:border-futuro-corp disabled:bg-gray-50 disabled:text-gray-400 resize-none"
+            disabled={camposDeshabilitados}
+            className="resize-none text-[13px] leading-relaxed"
           />
         </div>
+        {editado && !camposDeshabilitados && (
+          <p className="flex items-center gap-1.5 text-[11px] font-medium text-futuro-corp">
+            <Edit3 className="size-3" aria-hidden="true" />
+            Borrador modificado — quedará registrado como “editado por humano”.
+          </p>
+        )}
       </div>
 
-      {/* --- PLANO ESTRELLA: CONTROL DE CONSENTIMIENTO BLOQUEADO (Sección 6.4) --- */}
-      {!tieneConsentimientoComercial ? (
-        <div className="space-y-4">
-          <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+      {bloqueado ? (
+        /* ---- PLANO ESTRELLA: consentimiento por finalidad ---- */
+        <div className="mt-4 space-y-3">
+          <div
+            role="alert"
+            id={idBloqueo}
+            className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4"
+          >
+            <ShieldAlert className="mt-0.5 size-5 shrink-0 text-red-600" aria-hidden="true" />
             <div>
-              <h4 className="text-sm font-bold text-red-800">⚠️ APROBACIÓN BLOQUEADA</h4>
-              <p className="text-xs text-red-700 mt-1 leading-relaxed">
-                Este lead no ha otorgado su consentimiento para comunicaciones comerciales. No se puede enviar ninguna comunicación directa por este canal.
+              <h4 className="text-sm font-bold uppercase tracking-wide text-red-800">
+                Aprobación bloqueada
+              </h4>
+              <p className="mt-1 text-[13px] leading-relaxed text-red-700">
+                {lead.identidad.nombre.split(' ')[0]} no ha consentido comunicaciones
+                comerciales. No se puede enviar ninguna comunicación por este canal.
               </p>
             </div>
           </div>
-          
-          {/* Alternativas habilitadas ante el bloqueo */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button type="button" className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-200 text-xs font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors">
-              <Phone className="w-3.5 h-3.5 text-gray-500" /> Contactar por Teléfono
-            </button>
-            <button type="button" className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-200 text-xs font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-colors">
-              <BookOpen className="w-3.5 h-3.5 text-gray-500" /> Solo Material Educativo
-            </button>
+
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Alternativas disponibles
+          </p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Button variant="outline" size="sm" onClick={() => canalAlternativo('Teléfono')}>
+              <Phone aria-hidden="true" /> Contactar por teléfono
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => canalAlternativo('Material educativo')}
+            >
+              <BookOpen aria-hidden="true" /> Solo material educativo
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => canalAlternativo('Consentimiento vía chat')}
+            >
+              <MessageSquare aria-hidden="true" /> Pedir consentimiento
+            </Button>
           </div>
-          
-          {/* Botón principal deshabilitado */}
-          <button disabled className="w-full py-2.5 bg-gray-200 text-gray-400 text-sm font-medium rounded-lg cursor-not-allowed">
-            Aprobación Inhabilitada
-          </button>
+
+          <Button
+            disabled
+            aria-describedby={idBloqueo}
+            title="El backend también rechaza este envío (403): ocultar un botón no es seguridad"
+            className="w-full"
+          >
+            <Lock aria-hidden="true" /> Aprobar envío — bloqueado
+          </Button>
+          <p className="text-center text-[11px] leading-snug text-muted-foreground">
+            Un lead sin consentimiento comercial no es basura: es un prospecto válido
+            con restricción de canal.
+          </p>
         </div>
       ) : (
-        /* --- FLUJO NORMAL DE ACCIONES --- */
-        <div className="space-y-3">
+        /* ---- Flujo normal: aprobar / editar y aprobar / rechazar ---- */
+        <div className="mt-4">
           {mostrarRechazo ? (
-            <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
-              <label className="block text-xs font-bold text-gray-500 uppercase">Motivo del Rechazo (Vuelve a Nutrición)</label>
-              <input 
-                type="text" 
-                placeholder="Ej. El cliente prefiere esperar al próximo trimestre" 
+            <div className="space-y-2 rounded-lg border border-border bg-muted/50 p-3">
+              <label
+                htmlFor={`motivo-${accion.id}`}
+                className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
+              >
+                Motivo del rechazo — el lead vuelve a nutrición
+              </label>
+              <Input
+                id={`motivo-${accion.id}`}
+                autoFocus
+                placeholder="Ej. El cliente prefiere esperar al próximo trimestre"
                 value={motivoRechazo}
                 onChange={(e) => setMotivoRechazo(e.target.value)}
-                className="w-full text-xs border-gray-200 rounded p-1.5"
               />
-              <div className="flex justify-end gap-2 text-xs pt-1">
-                <button onClick={() => setMostrarRechazo(false)} className="px-2 py-1 text-gray-500 hover:text-gray-700">Cancelar</button>
-                <button 
-                  onClick={() => onActionComplete?.('rechazar', { motivo: motivoRechazo })}
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="ghost" size="sm" onClick={() => setMostrarRechazo(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
                   disabled={!motivoRechazo.trim()}
-                  className="px-2 py-1 bg-red-600 text-white rounded disabled:opacity-50"
+                  onClick={rechazar}
+                  className="bg-red-600 text-white hover:bg-red-700"
                 >
-                  Confirmar Rechazo
-                </button>
+                  Confirmar rechazo
+                </Button>
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 justify-end">
-              <button 
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <Button
+                variant="ghost"
                 onClick={() => setMostrarRechazo(true)}
                 disabled={esObsoleta}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
               >
-                <X className="w-3.5 h-3.5 inline mr-1" /> Rechazar
-              </button>
-              
-              <button 
-                onClick={() => onActionComplete?.('editar_aprobar', { asunto, cuerpo })}
-                disabled={esObsoleta || asunto === accion.borrador.asunto && cuerpo === accion.borrador.cuerpo}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                <X aria-hidden="true" /> Rechazar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={aprobar}
+                disabled={esObsoleta || !editado}
+                title={
+                  !editado ? 'Modifica el borrador para habilitar esta opción' : undefined
+                }
               >
-                <Edit3 className="w-3.5 h-3.5 inline mr-1" /> Editar y Aprobar
-              </button>
-
-              <button 
-                onClick={() => onActionComplete?.('aprobar', { asunto, cuerpo })}
-                disabled={esObsoleta}
-                className="px-4 py-2 bg-futuro-corp hover:bg-futuro-base text-white text-xs font-medium rounded-lg shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                <Edit3 aria-hidden="true" /> Editar y aprobar
+              </Button>
+              <Button
+                onClick={aprobar}
+                disabled={esObsoleta || editado}
+                title={
+                  editado
+                    ? 'El borrador tiene cambios — usa “Editar y aprobar”'
+                    : undefined
+                }
               >
-                <ShieldCheck className="w-4 h-4" /> Aprobar Envío
-              </button>
+                <ShieldCheck aria-hidden="true" /> Aprobar envío
+              </Button>
             </div>
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 }
