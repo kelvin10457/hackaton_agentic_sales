@@ -25,4 +25,3 @@ langgraph-checkpoint-postgres
 google-genai
 numpy
 pyyaml
-EOF
