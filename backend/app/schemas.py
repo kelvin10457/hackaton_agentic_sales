@@ -336,7 +336,7 @@ class LeadV2Base(BaseModel):
         """
         if v is None:
             return v
-        from validators import validar_cedula, validar_ruc
+        from app.validators import validar_cedula, validar_ruc
         if not (validar_cedula(v) or validar_ruc(v)):
             raise ValueError(
                 f"Cédula o RUC inválido: '{v}'. "

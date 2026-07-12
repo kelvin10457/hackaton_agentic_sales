@@ -8,7 +8,7 @@ Verifica:
 
 Ejecutar:
   cd backend
-  PYTHONPATH=app .venv/bin/pytest app/tests/test_superficies.py -v
+  .venv/bin/pytest app/tests/test_superficies.py -v
 """
 import os
 import sys
@@ -31,14 +31,14 @@ from fastapi.testclient import TestClient
 from jose import jwt
 
 # Importar DESPUÉS de setear env vars
-from database import Base, engine
-from auth import get_db, SECRET_KEY, CHAT_TOKEN_SECRET, ALGORITHM
+from app.database import Base, engine
+from app.auth import get_db, SECRET_KEY, CHAT_TOKEN_SECRET, ALGORITHM
 
 # Crear tablas en SQLite de prueba
 Base.metadata.create_all(bind=engine)
 
-from main import app
-from models import Conversation, Lead, Message, User
+from app.main import app
+from app.models import Conversation, Lead, Message, User
 
 # ── Override de BD con SQLite en memoria para tests ───────────────────────────
 

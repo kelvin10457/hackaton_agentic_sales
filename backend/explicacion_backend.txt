@@ -53,7 +53,7 @@ Desde el directorio `backend/`:
 
 El script ejecuta:
 
-    PYTHONPATH=app .venv/bin/python -m uvicorn app.main:app \
+    .venv/bin/python -m uvicorn app.main:app \
       --host 0.0.0.0 --port 8000 --reload
 
 La API queda en `http://localhost:8000`. `GET /` devuelve
@@ -342,7 +342,7 @@ payloads maliciosos.
 --------------------
 Las semillas se cargan con:
 
-    PYTHONPATH=app .venv/bin/python app/seed.py
+    .venv/bin/python -m app.seed
 
 Se describen como idempotentes. María Villacís y Andrés Cordero se recalculan
 con el motor, no con valores forzados:
@@ -352,7 +352,7 @@ con el motor, no con valores forzados:
 
 Las pruebas se ejecutan con:
 
-    PYTHONPATH=app .venv/bin/python -m pytest app/tests -v
+    .venv/bin/python -m pytest app/tests -v
 
 La suite existente cubre identidad, idempotencia de CRM, consentimiento,
 validaciones, superficies, consola/leads y scoring. El auditor debe revisar si

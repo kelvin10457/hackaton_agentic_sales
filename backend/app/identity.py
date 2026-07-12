@@ -6,7 +6,7 @@ El adaptador local valida formato y dígitos verificadores; un proveedor real
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from validators import clasificar_documento
+from app.validators import clasificar_documento
 
 
 @dataclass(frozen=True)

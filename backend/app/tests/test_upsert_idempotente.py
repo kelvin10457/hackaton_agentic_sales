@@ -8,7 +8,7 @@ Verifica:
 
 Ejecutar:
   cd backend
-  PYTHONPATH=app .venv/bin/pytest app/tests/test_upsert_idempotente.py -v
+  .venv/bin/pytest app/tests/test_upsert_idempotente.py -v
 """
 import os, sys
 
@@ -23,10 +23,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from fastapi import HTTPException
 
-from database import Base
-from models import LeadV2 as LeadV2Model, Oportunidad as OportunidadModel
-from schemas import LeadV2Read, EstadoIdentificacion, EtapaEmbudo
-from crm import CRMSimulado, CRMPort
+from app.database import Base
+from app.models import LeadV2 as LeadV2Model, Oportunidad as OportunidadModel
+from app.schemas import LeadV2Read, EstadoIdentificacion, EtapaEmbudo
+from app.crm import CRMSimulado, CRMPort
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 

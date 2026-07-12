@@ -5,8 +5,8 @@ import sys
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from models import SenalesLead
-from scoring import calcular_score, ruta_sugerida
+from app.models import SenalesLead
+from app.scoring import calcular_score, ruta_sugerida
 
 
 def _senales(**values):

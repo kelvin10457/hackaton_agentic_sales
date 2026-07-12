@@ -23,9 +23,9 @@ def pytest_runtest_setup(item):
     Esto evita que overrides de test_upsert_idempotente contaminen test_consentimiento.
     """
     import sys
-    if "main" not in sys.modules:
+    if "app.main" not in sys.modules:
         return
-    from main import app
+    from app.main import app
 
     # Cada módulo de test guarda sus overrides propios en _MODULE_OVERRIDES
     module = item.module

@@ -13,9 +13,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from auth import get_db, requiere_token_sesion
-from models import Conversation, Message
-from schemas import ConversacionV2Read, MessageRead
+from app.auth import get_db, requiere_token_sesion
+from app.models import Conversation, Message
+from app.schemas import ConversacionV2Read, MessageRead
 
 router = APIRouter(prefix="/api/chat", tags=["Chat (pública)"])
 _TS = lambda: datetime.now(timezone.utc)

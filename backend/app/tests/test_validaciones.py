@@ -5,7 +5,7 @@ Casos válidos, inválidos y de borde para ambas funciones.
 
 Ejecutar:
   cd backend
-  PYTHONPATH=app .venv/bin/pytest app/tests/test_validaciones.py -v
+  .venv/bin/pytest app/tests/test_validaciones.py -v
 """
 import os, sys
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_validaciones.db")
@@ -14,7 +14,7 @@ os.environ.setdefault("CHAT_TOKEN_SECRET", "test-chat-secret-32-chars-padded")
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import pytest
-from validators import validar_cedula, validar_ruc, clasificar_documento
+from app.validators import validar_cedula, validar_ruc, clasificar_documento
 
 
 # =============================================================================
@@ -176,23 +176,23 @@ class TestClasificarDocumento:
 class TestLeadV2CedulaValidator:
 
     def test_lead_con_cedula_valida(self):
-        from schemas import LeadV2Create
+        from app.schemas import LeadV2Create
         lead = LeadV2Create(nombre="Test", cedula="1713175071")
         assert lead.cedula == "1713175071"
 
     def test_lead_con_ruc_valido(self):
-        from schemas import LeadV2Create
+        from app.schemas import LeadV2Create
         lead = LeadV2Create(nombre="Test", cedula="1713175071001")
         assert lead.cedula == "1713175071001"
 
     def test_lead_con_cedula_invalida_lanza_error(self):
-        from schemas import LeadV2Create
+        from app.schemas import LeadV2Create
         from pydantic import ValidationError
         with pytest.raises(ValidationError) as exc_info:
             LeadV2Create(nombre="Test", cedula="1234567890")
         assert "cédula" in str(exc_info.value).lower() or "ruc" in str(exc_info.value).lower()
 
     def test_lead_sin_cedula_es_valido(self):
-        from schemas import LeadV2Create
+        from app.schemas import LeadV2Create
         lead = LeadV2Create(nombre="Anónimo")
         assert lead.cedula is None

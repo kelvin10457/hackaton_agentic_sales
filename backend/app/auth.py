@@ -10,8 +10,8 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 import bcrypt
 
-from database import SessionLocal
-from models import Conversation, User
+from app.database import SessionLocal
+from app.models import Conversation, User
 
 import os
 from dotenv import load_dotenv

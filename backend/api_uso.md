@@ -33,7 +33,7 @@ AUTH=(-H "Authorization: Bearer $TOKEN")
 ## Semillas y scoring
 
 ```bash
-PYTHONPATH=app .venv/bin/python app/seed.py
+.venv/bin/python -m app.seed
 
 curl "$BASE/api/consola/leads" "${AUTH[@]}"
 curl "$BASE/api/consola/leads/2/score" "${AUTH[@]}"
@@ -108,7 +108,7 @@ curl -X POST "$BASE/api/consola/leads/2/consentimiento" "${JSON[@]}" "${AUTH[@]}
 curl -X POST "$BASE/api/consola/crm/upsert" "${JSON[@]}" "${AUTH[@]}" -d '{"lead_id":2}'
 curl "$BASE/api/consola/corpus" "${AUTH[@]}"
 
-PYTHONPATH=app .venv/bin/python -m pytest app/tests -v
+.venv/bin/python -m pytest app/tests -v
 ```
 
 CRM exige lead no anónimo, email y tratamiento de datos. Aprobar acciones exige

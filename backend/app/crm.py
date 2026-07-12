@@ -16,9 +16,9 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from schemas import LeadV2Read, EstadoIdentificacion
-from models import LeadV2 as LeadV2Model, Oportunidad as OportunidadModel, ScoreLead, SenalesLead
-from scoring import ruta_sugerida
+from app.schemas import LeadV2Read, EstadoIdentificacion
+from app.models import LeadV2 as LeadV2Model, Oportunidad as OportunidadModel, ScoreLead, SenalesLead
+from app.scoring import ruta_sugerida
 
 
 # ──────────────────────────────────────────────────────────────────────────────

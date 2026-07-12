@@ -1,4 +1,4 @@
-from identity import IdentityLocal, IdentityPort
+from app.identity import IdentityLocal, IdentityPort
 
 
 def test_identity_local_implementa_puerto_y_valida_cedula():

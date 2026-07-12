@@ -7,7 +7,7 @@ Esto NO es un botón oculto en el frontend — es un HTTP 403 real.
 
 Ejecutar:
   cd backend
-  PYTHONPATH=app .venv/bin/pytest app/tests/test_consentimiento.py -v
+  .venv/bin/pytest app/tests/test_consentimiento.py -v
 """
 import os, sys
 
@@ -21,16 +21,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from database import Base
+from app.database import Base
 
 _engine = create_engine("sqlite:///./test_consentimiento.db",
                         connect_args={"check_same_thread": False})
 Base.metadata.create_all(bind=_engine)
 _Session = sessionmaker(bind=_engine)
 
-from main import app
-from auth import get_db, requiere_rol_ejecutivo
-from models import (
+from app.main import app
+from app.auth import get_db, requiere_rol_ejecutivo
+from app.models import (
     LeadV2 as LeadV2Model,
     Consentimiento as ConsentimientoModel,
     AccionPropuesta as AccionPropuestaModel,

@@ -4,7 +4,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from models import SenalesLead, ScoreLead, AccionPropuesta as AccionPropuestaModel, Oportunidad
+from app.models import SenalesLead, ScoreLead, AccionPropuesta as AccionPropuestaModel, Oportunidad
 
 
 def _segmento(senales: SenalesLead, segmento: str | None = None) -> str:

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from auth import get_db, requiere_rol_ejecutivo
-from models import Conversation, LeadV2, ScoreLead
-from schemas import (
+from app.auth import get_db, requiere_rol_ejecutivo
+from app.models import Conversation, LeadV2, ScoreLead
+from app.schemas import (
     ConversationCreate, ConversationRead, ConversationUpdate,
     ConversationWithMessages, LeadSummary, MessageRead,
 )

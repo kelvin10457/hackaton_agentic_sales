@@ -8,19 +8,19 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from auth import get_db, requiere_rol_ejecutivo, create_session_token
-from models import (
+from app.auth import get_db, requiere_rol_ejecutivo, create_session_token
+from app.models import (
     User, Conversation, Message, DocumentoCorpus,
     EventoAuditoria as EventoAuditoriaModel,
 )
-from auditoria import (
+from app.auditoria import (
     registrar_evento as _registrar,
     evento_lead_creado,
     evento_crm_upsert,
 )
-from validators import validar_cedula, validar_ruc
-from identity import IdentityPort, get_identity_port
-from schemas import (
+from app.validators import validar_cedula, validar_ruc
+from app.identity import IdentityPort, get_identity_port
+from app.schemas import (
     LeadV2Read, LeadV2Create,
     Senales, Score,
     OportunidadCreate, OportunidadRead,
@@ -105,8 +105,8 @@ def verificar_identidad(
 
 # ── Contratos #2 y #3 — Señales y Score ───────────────────────────────────────
 
-from models import SenalesLead as SenalesModel, ScoreLead as ScoreModel
-from scoring import recalcular_con_obsolescencia
+from app.models import SenalesLead as SenalesModel, ScoreLead as ScoreModel
+from app.scoring import recalcular_con_obsolescencia
 from pydantic import BaseModel as _BMscoring
 
 
@@ -219,10 +219,10 @@ def actualizar_senales(
     score, n_obsoletas = recalcular_con_obsolescencia(db, lead_id, s, lead.segmento)
 
     # Bitácora
-    from auditoria import evento_score_calculado
+    from app.auditoria import evento_score_calculado
     evento_score_calculado(db, lead_id, score.total, score.banda)
     if n_obsoletas:
-        from auditoria import registrar_evento as _reg
+        from app.auditoria import registrar_evento as _reg
         _reg(db, "sistema", "sistema", "acciones_marcadas_obsoletas", lead_id,
              {"n_obsoletas": n_obsoletas})
 
@@ -245,7 +245,7 @@ def obtener_score(
     # Intentar calcular desde señales existentes
     senales = db.query(SenalesModel).filter(SenalesModel.lead_id == lead_id).first()
     if senales:
-        from scoring import upsert_score
+        from app.scoring import upsert_score
         lead = db.query(LeadV2Model).filter(LeadV2Model.id == lead_id).first()
         score = upsert_score(db, lead_id, senales, lead.segmento if lead else None)
         return _score_to_schema(score, lead_id)
@@ -331,7 +331,7 @@ def _accion_to_schema(a) -> AccionPropuestaRead:
 
 # ── Contrato #5 — Consentimiento ────────────────────────────────────────────
 
-from models import Consentimiento as ConsentimientoModel
+from app.models import Consentimiento as ConsentimientoModel
 from pydantic import BaseModel as _BM
 
 
@@ -400,7 +400,7 @@ def upsert_consentimiento(
     db.commit()
     db.refresh(c)
     # Bitácora
-    from auditoria import evento_consentimiento_otorgado
+    from app.auditoria import evento_consentimiento_otorgado
     if payload.tratamiento_datos_otorgado:
         evento_consentimiento_otorgado(db, lead_id, "tratamiento_datos", payload.tratamiento_datos_canal or "")
     if payload.comunicaciones_comerciales_otorgado:
@@ -410,7 +410,7 @@ def upsert_consentimiento(
 
 # ── Contrato #6 — AccionPropuesta ───────────────────────────────────────────
 
-from models import AccionPropuesta as AccionPropuestaModel
+from app.models import AccionPropuesta as AccionPropuestaModel
 
 
 @router.get("/leads/{lead_id}/acciones", response_model=list[AccionPropuestaRead])
@@ -449,7 +449,7 @@ def crear_accion(
     db.add(accion)
     db.commit()
     db.refresh(accion)
-    from auditoria import registrar_evento as _reg
+    from app.auditoria import registrar_evento as _reg
     _reg(db, "sistema", payload.generado_por, "accion_generada", lead_id, {"accion_id": accion.id})
     return _accion_to_schema(accion)
 
@@ -507,7 +507,7 @@ def aprobar_accion(
     db.commit()
     db.refresh(accion)
 
-    from auditoria import evento_accion_aprobada
+    from app.auditoria import evento_accion_aprobada
     evento_accion_aprobada(db, actor_id=ejecutivo.email, lead_id=accion.lead_id, accion_id=accion_id)
 
     return _accion_to_schema(accion)
@@ -561,7 +561,7 @@ def obtener_auditoria(
     Orden: más reciente primero.
     REGLA: no existe PATCH ni DELETE para esta tabla.
     """
-    from models import EventoAuditoria as M
+    from app.models import EventoAuditoria as M
     eventos = (
         db.query(M)
         .filter(M.lead_id == lead_id)
@@ -672,8 +672,8 @@ def crear_documento(
 # CRM — Tarea #5: upsert idempotente + bloqueo de anónimos
 # ──────────────────────────────────────────────────────────────────────────────
 
-from crm import get_crm
-from models import LeadV2 as LeadV2Model, Oportunidad as OportunidadModel
+from app.crm import get_crm
+from app.models import LeadV2 as LeadV2Model, Oportunidad as OportunidadModel
 from pydantic import BaseModel as _BaseModel
 
 
@@ -700,7 +700,7 @@ def crear_lead_v2(
     db: Session = Depends(get_db),
 ):
     """Crea un lead en leads_v2. El email_normalizado se deriva automáticamente."""
-    from models import LeadV2 as M
+    from app.models import LeadV2 as M
     existente = None
     if payload.email_normalizado:
         existente = db.query(M).filter(M.email_normalizado == payload.email_normalizado).first()
@@ -735,7 +735,7 @@ def crm_upsert(
     Idempotente: se puede llamar N veces con el mismo lead_id sin crear duplicados.
     Registra el evento CRM_UPSERT en la bitácora (implementación real en Tarea #6).
     """
-    from models import LeadV2 as M
+    from app.models import LeadV2 as M
     lead_db = db.query(M).filter(M.id == payload.lead_id).first()
     if not lead_db:
         raise HTTPException(404, f"Lead #{payload.lead_id} no encontrado en leads_v2.")
@@ -757,7 +757,7 @@ def crm_upsert(
     crm = get_crm(db)
 
     # Verificar si ya existía antes del upsert
-    from models import Oportunidad as OM
+    from app.models import Oportunidad as OM
     ya_existia = db.query(OM).filter(OM.lead_id == lead_db.id).first() is not None
 
     contacto_id = crm.upsert_contacto(lead_schema)

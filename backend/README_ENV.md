@@ -46,6 +46,17 @@ Respuesta esperada:
 
 Si `db` es `"error"`, revisa que `DATABASE_URL` apunte a una instancia de Postgres activa y que el usuario tenga permisos.
 
+## Despliegue en Render
+
+Configura **Root Directory** como `backend` y usa este comando de arranque:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+No configures `PYTHONPATH=app`: el directorio de trabajo debe ser `backend`,
+que contiene el paquete raíz `app` y el paquete independiente `schemas`.
+
 ## Datos de demostración
 
 Carga 15 leads idempotentes (incluye María Villacís, Andrés Cordero y Sofía
@@ -53,7 +64,7 @@ Andrade) con:
 
 ```bash
 cd backend
-PYTHONPATH=app .venv/bin/python app/seed.py
+.venv/bin/python -m app.seed
 ```
 
 Sofía queda sin consentimiento de comunicaciones comerciales, para demostrar

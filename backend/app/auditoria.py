@@ -17,7 +17,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from models import EventoAuditoria as EventoAuditoriaModel
+from app.models import EventoAuditoria as EventoAuditoriaModel
 
 
 def registrar_evento(

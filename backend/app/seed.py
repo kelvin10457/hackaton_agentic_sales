@@ -1,13 +1,13 @@
 """Carga datos de demostración idempotentes para las tareas #9 del Manual R2.
 
 Ejecutar desde ``backend/``:
-    PYTHONPATH=app .venv/bin/python app/seed.py
+    .venv/bin/python -m app.seed
 """
 from datetime import datetime, timezone
 
-from database import Base, SessionLocal, engine
-from models import Consentimiento, LeadV2, SenalesLead, ScoreLead
-from scoring import upsert_score
+from app.database import Base, SessionLocal, engine
+from app.models import Consentimiento, LeadV2, SenalesLead, ScoreLead
+from app.scoring import upsert_score
 
 
 SEMILLAS = [

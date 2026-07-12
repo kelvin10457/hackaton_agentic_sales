@@ -3,9 +3,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from auth import get_db, requiere_rol_ejecutivo
-from models import Lead, User
-from schemas import (
+from app.auth import get_db, requiere_rol_ejecutivo
+from app.models import Lead, User
+from app.schemas import (
     LeadCreate, LeadRead, LeadUpdate,
     LeadWithConversations, ConversationSummary,
     TimelineMessage, LeadActivity,

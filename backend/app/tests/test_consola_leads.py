@@ -15,10 +15,10 @@ from jose import jwt
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from auth import ALGORITHM, SECRET_KEY, get_db
-from database import Base
-from main import app
-from models import LeadV2, Oportunidad, User
+from app.auth import ALGORITHM, SECRET_KEY, get_db
+from app.database import Base
+from app.main import app
+from app.models import LeadV2, Oportunidad, User
 
 
 _test_engine = create_engine(
