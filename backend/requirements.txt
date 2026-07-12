@@ -16,7 +16,13 @@ typing_extensions==4.16.0
 uvicorn==0.51.0
 python-dotenv==1.0.0
 python-jose[cryptography]
-passlib[bcrypt]
+bcrypt
 python-multipart
 pytest
 httpx
+langgraph
+langgraph-checkpoint-postgres
+google-genai
+numpy
+pyyaml
+EOF
