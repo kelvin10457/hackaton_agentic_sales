@@ -301,11 +301,13 @@ class EstadoIdentificacion(str, Enum):
 
 
 class EstadoAccion(str, Enum):
-    PENDIENTE  = "pendiente"   # Generada, esperando revisión humana
-    APROBADA   = "aprobada"    # Revisada y autorizada
-    RECHAZADA  = "rechazada"   # Revisada y descartada
-    EJECUTADA  = "ejecutada"   # Ya enviada al lead
-    OBSOLETA   = "obsoleta"    # Señales del lead cambiaron después de crearla
+    """Estados de la Biblia §4.6. Nace SIEMPRE en 'pendiente'."""
+    PENDIENTE           = "pendiente"            # Generada, esperando revisión humana
+    APROBADA            = "aprobada"             # Aprobada tal cual la escribió el agente
+    EDITADA_Y_APROBADA  = "editada_y_aprobada"   # Carlos cambió el borrador y lo aprobó
+    RECHAZADA           = "rechazada"            # Revisada y descartada → lead a nutrición
+    EJECUTADA           = "ejecutada"            # Ya enviada al lead
+    OBSOLETA            = "obsoleta"             # Las señales cambiaron tras generarla (CV5)
 
 
 class TipoEvento(str, Enum):
@@ -339,6 +341,9 @@ class LeadV2Base(BaseModel):
     estado_identificacion: EstadoIdentificacion = EstadoIdentificacion.ANONIMO
     etapa_embudo: EtapaEmbudo = EtapaEmbudo.NUEVO
     segmento: Literal["b2c", "b2b"] = "b2c"
+    # El brief que lee Carlos (Biblia §4.1, criterio 3.1)
+    necesidad: str | None = None
+    objeciones: list[str] = Field(default_factory=list)
 
     @field_validator("cedula")
     @classmethod
@@ -366,6 +371,13 @@ class LeadV2Base(BaseModel):
         # Intentar derivar desde el campo email si está presente
         email = info.data.get("email") if hasattr(info, "data") else None
         return email.strip().lower() if email else None
+
+    @field_validator("objeciones", mode="before")
+    @classmethod
+    def objeciones_nunca_null(cls, v) -> list[str]:
+        """En la BD la columna es nullable; para la API una lista vacía es más
+        honesta que un null ("no se detectaron objeciones")."""
+        return v or []
 
 
 class LeadV2Create(LeadV2Base):
@@ -520,12 +532,32 @@ class AccionPropuestaCreate(AccionPropuestaBase):
     pass
 
 
+class BorradorFinal(BaseModel):
+    """Lo que REALMENTE salió, si Carlos editó el borrador del agente."""
+    asunto: str
+    cuerpo: str
+
+
+class AprobarAccionRequest(BaseModel):
+    """Body OPCIONAL de POST /acciones/{id}/aprobar.
+
+    Si llega con un borrador distinto al que redactó el agente, la acción pasa a
+    'editada_y_aprobada' y se marca `editado_por_humano = true`.
+    Sin body, se aprueba el borrador del agente tal cual.
+    """
+    asunto: str | None = None
+    cuerpo: str | None = None
+
+
 class AccionPropuestaRead(AccionPropuestaBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
     estado: EstadoAccion = EstadoAccion.PENDIENTE
     revisado_por: str | None = None     # Email del ejecutivo que aprobó/rechazó
+    revisado_en: datetime | None = None
     motivo_rechazo: str | None = None
+    borrador_final: BorradorFinal | None = None   # solo si lo editó un humano
+    editado_por_humano: bool = False              # la marca de responsabilidad
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -604,7 +636,10 @@ class RespuestaAgente(BaseModel):
     estado_flujo: str = "educacion"
     badge_tipo: Literal["B2C", "B2B"] | None = None
     guardrail: str | None = None          # "G1" | "G2" | ... si se activó una malla
-    accion: Literal["proponer_quiz"] | None = None
+    # Siguiente paso que el frontend debe ofrecer:
+    #   proponer_quiz → tarjeta del quiz de perfil de riesgo (solo B2C)
+    #   pedir_email   → captura del correo (B2B, o B2C que ya hizo el quiz)
+    accion: Literal["proponer_quiz", "pedir_email"] | None = None
 
 
 class MensajeHistorial(BaseModel):

@@ -88,12 +88,17 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
   async function aprobar() {
     const tipo = editado ? 'editar_aprobar' : 'aprobar';
     try {
-      await apiAprobar(Number(accion.id));
+      // Se envía SIEMPRE el borrador en pantalla. El backend compara con el que
+      // redactó el agente: si cambió, queda como 'editada_y_aprobada' y marca
+      // editado_por_humano. La edición ya no se pierde (criterio 3.3).
+      await apiAprobar(Number(accion.id), { asunto, cuerpo });
       onActionComplete?.(tipo, { asunto, cuerpo });
       toast({
         tipo: 'success',
         titulo: editado ? 'Borrador editado y aprobado' : 'Comunicación aprobada',
-        descripcion: 'Registrado en la bitácora del backend con tu autoría.',
+        descripcion: editado
+          ? 'Queda registrado en la bitácora que la última palabra fue tuya.'
+          : 'Registrado en la bitácora del backend con tu autoría.',
       });
     } catch (err) {
       toast({

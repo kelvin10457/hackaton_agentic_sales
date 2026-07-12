@@ -16,7 +16,10 @@ export interface RespuestaAgente {
   badge_tipo?: TipoLead;
   guardrail?: string;
   /** El backend puede sugerir una acción de UI (p. ej. ofrecer el quiz) */
-  accion?: "proponer_quiz";
+  // Siguiente paso que debe ofrecer la UI:
+  //   proponer_quiz → tarjeta del quiz de perfil de riesgo (solo B2C)
+  //   pedir_email   → captura del correo (B2B, o B2C que ya hizo el quiz)
+  accion?: "proponer_quiz" | "pedir_email";
 }
 
 export interface PreguntaQuiz {

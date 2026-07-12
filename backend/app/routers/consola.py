@@ -25,7 +25,7 @@ from app.schemas import (
     Senales, Score,
     OportunidadCreate, OportunidadRead,
     ConsentimientoRead, Otorgamiento,
-    AccionPropuestaCreate, AccionPropuestaRead,
+    AccionPropuestaCreate, AccionPropuestaRead, AprobarAccionRequest,
     EventoAuditoriaCreate, EventoAuditoriaRead,
     ConversacionV2Read,
     DocumentoCorpusCreate, DocumentoCorpusRead,
@@ -326,7 +326,10 @@ def _accion_to_schema(a) -> AccionPropuestaRead:
         generado_por=a.generado_por,
         estado=EstadoAccion(a.estado),
         revisado_por=a.revisado_por,
+        revisado_en=getattr(a, "revisado_en", None),
         motivo_rechazo=a.motivo_rechazo,
+        borrador_final=getattr(a, "borrador_final", None),
+        editado_por_humano=bool(getattr(a, "editado_por_humano", False)),
         created_at=a.created_at,
         updated_at=a.updated_at,
     )
@@ -470,11 +473,22 @@ def crear_accion(
 )
 def aprobar_accion(
     accion_id: int,
+    payload: AprobarAccionRequest | None = None,
     ejecutivo: User = Depends(requiere_rol_ejecutivo),
     db: Session = Depends(get_db),
 ):
-    """REGLA #3: Verifica comunicaciones_comerciales antes de aprobar.
-    Este bloqueo ocurre en el BACKEND, no en la UI.
+    """Aprobar · Editar y aprobar (criterio 3.3 — el human-in-the-loop).
+
+    REGLA #3: verifica comunicaciones_comerciales ANTES de aprobar. El bloqueo
+    ocurre en el BACKEND, no en la UI: ocultar un botón no es seguridad.
+
+    Si el body trae un borrador distinto al que redactó el agente, la acción pasa
+    a 'editada_y_aprobada', se guarda `borrador_final` (lo que REALMENTE salió) y
+    se marca `editado_por_humano = true`.
+
+    G1 restringe al AGENTE, no al humano: si Carlos escribe algo que constituya
+    asesoría, el sistema NO lo censura — lo hace RESPONSABLE. Su nombre y su hora
+    quedan en la bitácora (Biblia §10).
     """
     accion = db.query(AccionPropuestaModel).filter(AccionPropuestaModel.id == accion_id).first()
     if not accion:
@@ -507,14 +521,51 @@ def aprobar_accion(
             detail=f"La acción ya está en estado '{accion.estado}' y no puede aprobarse.",
         )
 
-    accion.estado = "aprobada"
+    # ── ¿Carlos editó el borrador del agente? ────────────────────────────────
+    asunto_original = accion.asunto or ""
+    cuerpo_original = accion.mensaje_sugerido or ""
+    asunto_final = (payload.asunto if payload and payload.asunto is not None else asunto_original)
+    cuerpo_final = (payload.cuerpo if payload and payload.cuerpo is not None else cuerpo_original)
+
+    editado = (
+        asunto_final.strip() != asunto_original.strip()
+        or cuerpo_final.strip() != cuerpo_original.strip()
+    )
+
+    ahora = _TS()
+    if editado:
+        # Se conserva el borrador ORIGINAL del agente (asunto/mensaje_sugerido)
+        # y se guarda aparte lo que realmente salió. Así la bitácora puede
+        # mostrar ambos y demostrar que la última palabra fue de un humano.
+        accion.estado = "editada_y_aprobada"
+        accion.borrador_final = {"asunto": asunto_final, "cuerpo": cuerpo_final}
+        accion.editado_por_humano = True
+    else:
+        accion.estado = "aprobada"
+        accion.editado_por_humano = False
+
     accion.revisado_por = ejecutivo.email
-    accion.updated_at = _TS()
+    accion.revisado_en = ahora
+    accion.updated_at = ahora
+
+    # El lead queda derivado: la comunicación salió (simulada) hacia el asesor.
+    lead = db.query(LeadV2Model).filter(LeadV2Model.id == accion.lead_id).first()
+    if lead:
+        lead.etapa_embudo = "derivado"
+        lead.updated_at = ahora
+
     db.commit()
     db.refresh(accion)
 
-    from app.auditoria import evento_accion_aprobada
-    evento_accion_aprobada(db, actor_id=ejecutivo.email, lead_id=accion.lead_id, accion_id=accion_id)
+    # Bitácora: quién, cuándo, y si fue editado por un humano (append-only).
+    _registrar(
+        db, "humano", ejecutivo.email, "accion_aprobada", accion.lead_id,
+        {
+            "accion_id": accion.id,
+            "estado": accion.estado,
+            "editado_por_humano": accion.editado_por_humano,
+        },
+    )
 
     return _accion_to_schema(accion)
 

@@ -13,9 +13,10 @@ from app.scoring import upsert_score, ruta_sugerida
 
 SEMILLAS = [
     # Cada score se calcula exclusivamente desde ``senales`` con scoring.py.
-    {"nombre": "María Villacís", "email": "maria.villacis@ejemplo.ec", "telefono": "+593991234567", "cedula": "1713175071", "empresa": "", "cargo": "", "segmento": "b2c", "estado": "verificado", "etapa": "listo_para_asesor", "consentimiento": (True, True), "senales": {"pidio_asesor": True, "completo_quiz": True, "mensajes_intercambiados": 11, "objetivo": "invertir", "monto_declarado_usd": 10000, "experiencia_inversion": "ninguna", "documento_valido": True, "email_valido": True, "horizonte": "1-3m"}},
-    {"nombre": "Andrés Cordero", "email": "andres.cordero@acme.ec", "telefono": "+593987654321", "empresa": "Acme Ecuador", "cargo": "Gerente de Operaciones", "segmento": "b2b", "estado": "identificado", "etapa": "calificado", "consentimiento": (True, True), "senales": {"mensajes_intercambiados": 9, "objetivo": "capacitar_equipo", "num_colaboradores": 120, "presupuesto_capacitacion_usd": 8000, "es_decisor": True, "ruc_valido": True, "email_corporativo": True, "horizonte": "3-6m"}},
-    {"nombre": "Sofía Andrade", "email": "sofia.andrade@ejemplo.ec", "telefono": "+593998765432", "empresa": "", "cargo": "", "segmento": "b2c", "estado": "identificado", "etapa": "listo_para_asesor", "consentimiento": (True, False), "senales": {"pidio_asesor": True, "completo_quiz": True, "mensajes_intercambiados": 5, "objetivo": "invertir", "monto_declarado_usd": 3000, "experiencia_inversion": "basica", "email_valido": True, "horizonte": "1-3m"}},
+    # ``necesidad`` y ``objeciones`` son el brief que lee Carlos (Biblia §4.1).
+    {"nombre": "María Villacís", "email": "maria.villacis@ejemplo.ec", "telefono": "+593991234567", "cedula": "1713175071", "empresa": "", "cargo": "", "segmento": "b2c", "estado": "verificado", "etapa": "listo_para_asesor", "consentimiento": (True, True), "necesidad": "Quiere empezar a invertir sus ahorros pero no sabe por dónde empezar", "objeciones": ["Le preocupa perder dinero", "Compara con alternativas bancarias tradicionales (plazo fijo/póliza)"], "senales": {"pidio_asesor": True, "completo_quiz": True, "mensajes_intercambiados": 11, "objetivo": "invertir", "monto_declarado_usd": 10000, "experiencia_inversion": "ninguna", "documento_valido": True, "email_valido": True, "horizonte": "1-3m", "perfil_riesgo": "moderado"}},
+    {"nombre": "Andrés Cordero", "email": "andres.cordero@acme.ec", "telefono": "+593987654321", "empresa": "Acme Ecuador", "cargo": "Gerente de Operaciones", "segmento": "b2b", "estado": "identificado", "etapa": "calificado", "consentimiento": (True, True), "necesidad": "Busca un programa de bienestar financiero para sus 120 colaboradores", "objeciones": ["Falta de tiempo para dedicarle"], "senales": {"mensajes_intercambiados": 9, "objetivo": "capacitar_equipo", "num_colaboradores": 120, "presupuesto_capacitacion_usd": 8000, "es_decisor": True, "ruc_valido": True, "email_corporativo": True, "horizonte": "3-6m"}},
+    {"nombre": "Sofía Andrade", "email": "sofia.andrade@ejemplo.ec", "telefono": "+593998765432", "empresa": "", "cargo": "", "segmento": "b2c", "estado": "identificado", "etapa": "listo_para_asesor", "consentimiento": (True, False), "necesidad": "Quiere entender los fondos indexados antes de mover su ahorro programado", "objeciones": ["No quiere ser contactado por vendedores"], "senales": {"pidio_asesor": True, "completo_quiz": True, "mensajes_intercambiados": 5, "objetivo": "invertir", "monto_declarado_usd": 3000, "experiencia_inversion": "basica", "email_valido": True, "horizonte": "1-3m", "perfil_riesgo": "conservador"}},
     {"nombre": "Carlos Mena", "email": "carlos.mena@nova.ec", "telefono": "+593991100001", "empresa": "Nova Labs", "cargo": "CTO", "segmento": "b2b", "estado": "identificado", "etapa": "en_calificacion", "consentimiento": (True, True), "senales": {"mensajes_intercambiados": 2, "num_colaboradores": 10, "presupuesto_capacitacion_usd": 1000, "horizonte": "mas_6m"}},
     {"nombre": "Lucía Torres", "email": "lucia.torres@ejemplo.ec", "telefono": "+593991100002", "empresa": "", "cargo": "", "segmento": "b2c", "estado": "identificado", "etapa": "calificado", "consentimiento": (True, True), "senales": {"completo_quiz": True, "mensajes_intercambiados": 8, "objetivo": "aprender", "monto_declarado_usd": 1000, "experiencia_inversion": "basica", "email_valido": True, "horizonte": "3-6m"}},
     {"nombre": "Diego Paredes", "email": "diego.paredes@andes.ec", "telefono": "+593991100003", "empresa": "Andes Logística", "cargo": "Compras", "segmento": "b2b", "estado": "identificado", "etapa": "listo_para_asesor", "consentimiento": (True, True), "senales": {"solicito_propuesta": True, "mensajes_intercambiados": 8, "objetivo": "capacitar_equipo", "num_colaboradores": 250, "presupuesto_capacitacion_usd": 12000, "es_decisor": True, "ruc_valido": True, "email_corporativo": True, "horizonte": "inmediato"}},
@@ -48,7 +49,8 @@ def cargar_semillas() -> tuple[int, int]:
                 lead = LeadV2(nombre=item["nombre"], email=email, email_normalizado=email_normalizado,
                               telefono=item.get("telefono"), empresa=item["empresa"] or None, cargo=item["cargo"] or None,
                               cedula=item.get("cedula"), estado_identificacion=item["estado"],
-                              etapa_embudo=item["etapa"], segmento=item["segmento"])
+                              etapa_embudo=item["etapa"], segmento=item["segmento"],
+                              necesidad=item.get("necesidad"), objeciones=item.get("objeciones", []))
                 db.add(lead)
                 db.flush()
                 tratamiento, comunicaciones = item["consentimiento"]
@@ -70,6 +72,8 @@ def cargar_semillas() -> tuple[int, int]:
                 lead.estado_identificacion = item["estado"]
                 lead.etapa_embudo = item["etapa"]
                 lead.segmento = item["segmento"]
+                lead.necesidad = item.get("necesidad")
+                lead.objeciones = item.get("objeciones", [])
                 consentimiento = db.query(Consentimiento).filter(Consentimiento.lead_id == lead.id).first()
                 tratamiento, comunicaciones = item["consentimiento"]
                 if consentimiento:
