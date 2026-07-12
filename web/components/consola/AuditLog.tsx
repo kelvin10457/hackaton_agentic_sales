@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Bot, CheckCircle2, Clock, RotateCcw, ShieldAlert, User } from 'lucide-react';
 
+import { fetchAuditoria, type EventoAuditoriaRaw } from '@/lib/consola-api';
 import { CitationChip } from '@/components/shared/citation-chip';
 import { etiqueta, formatFechaLarga, formatHora, formatRelativo } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -11,7 +12,7 @@ import type { AccionRealizada } from './LeadDetailPanel';
 
 interface LogEntry {
   ts: string;
-  actor: 'agente' | 'guardrail' | 'usuario' | 'ejecutivo';
+  actor: 'agente' | 'guardrail' | 'usuario' | 'ejecutivo' | 'sistema';
   nombreActor: string;
   evento: string;
   metadato?: string;
@@ -21,11 +22,69 @@ interface LogEntry {
 }
 
 /**
- * La bitácora se construye desde los DATOS del lead (no strings sueltos):
- * quién hizo qué, cuándo y con qué fuentes. Aquí se cierra la tesis:
- * el agente propone — la persona decide, y queda registrado.
+ * Convierte un evento de auditoría del backend al formato de la bitácora visual.
  */
-function construirBitacora(lead: Lead): LogEntry[] {
+function mapearEvento(raw: EventoAuditoriaRaw): LogEntry {
+  let actor: LogEntry['actor'] = 'agente';
+  let nombreActor = raw.actor_id;
+  let esHumano = false;
+  let esRechazo = false;
+
+  if (raw.actor === 'humano') {
+    actor = 'ejecutivo';
+    nombreActor = raw.actor_id || 'Ejecutivo';
+    esHumano = true;
+  } else if (raw.actor === 'sistema') {
+    actor = 'sistema';
+    nombreActor = 'Sistema';
+  } else {
+    actor = 'agente';
+    nombreActor = 'Agente IA';
+  }
+
+  // Mapear tipo_evento a texto legible
+  const textos: Record<string, string> = {
+    lead_creado: 'Lead creado en el sistema',
+    lead_actualizado: 'Lead actualizado',
+    identidad_verificada: 'Identidad verificada (cédula/RUC)',
+    consentimiento_otorgado: `Consentimiento otorgado: ${(raw.payload as Record<string, string>)?.finalidad ?? 'datos'}`,
+    score_calculado: `Score recalculado: ${(raw.payload as Record<string, number>)?.total ?? '—'}`,
+    accion_generada: 'Acción propuesta generada',
+    accion_aprobada: 'Comunicación aprobada',
+    accion_rechazada: 'Propuesta rechazada — lead a nutrición',
+    crm_upsert: 'Lead sincronizado al CRM',
+    error: `Error: ${(raw.payload as Record<string, string>)?.mensaje ?? 'desconocido'}`,
+  };
+
+  if (raw.tipo_evento === 'accion_rechazada') esRechazo = true;
+
+  const evento = textos[raw.tipo_evento] ?? etiqueta(raw.tipo_evento);
+
+  // Extraer metadato relevante del payload
+  let metadato: string | undefined;
+  if (raw.payload) {
+    const p = raw.payload as Record<string, unknown>;
+    if (p.banda) metadato = `Banda: ${String(p.banda).toUpperCase()}`;
+    if (p.motivo_rechazo) metadato = `Motivo: ${p.motivo_rechazo}`;
+    if (p.accion) metadato = `Acción: ${p.accion}`;
+  }
+
+  return {
+    ts: raw.timestamp,
+    actor,
+    nombreActor,
+    evento,
+    metadato,
+    esHumano,
+    esRechazo,
+  };
+}
+
+/**
+ * Construye la bitácora fallback si no hay datos del backend.
+ * Replica el comportamiento original para que nunca esté vacía.
+ */
+function construirBitacoraLocal(lead: Lead): LogEntry[] {
   const base = lead.ultima_actividad ?? new Date().toISOString();
   const hace = (minutos: number) =>
     new Date(new Date(base).getTime() - minutos * 60_000).toISOString();
@@ -65,39 +124,23 @@ function construirBitacora(lead: Lead): LogEntry[] {
     metadato: `Banda: ${etiqueta(lead.score?.banda).toUpperCase()}`,
   });
 
-  // Traza de guardrails de la demo de María (escena 1:00–1:20 del vídeo)
-  if (lead.id === 'lead_001') {
-    entradas.push({
-      ts: hace(7),
-      actor: 'guardrail',
-      nombreActor: 'Guardrail G2 · Negativa honesta',
-      evento: 'Consulta fuera del corpus aprobado — el agente respondió que no sabe',
-      metadato: 'Consulta: "bitcoin"',
-    });
-    entradas.push({
-      ts: hace(9),
-      actor: 'guardrail',
-      nombreActor: 'Guardrail G1 · No-asesoramiento',
-      evento: 'Bloqueo de recomendación de inversión directa',
-      metadato: 'Consulta: "en qué invierto"',
-    });
-  }
-
   return entradas;
 }
 
-const ESTILO_ICONO: Record<LogEntry['actor'], string> = {
+const ESTILO_ICONO: Record<string, string> = {
   agente: 'border-futuro-ia/25 bg-futuro-ia/10 text-futuro-ia',
   guardrail: 'border-red-200 bg-red-50 text-red-600',
   usuario: 'border-border bg-muted text-muted-foreground',
   ejecutivo: 'border-emerald-600 bg-emerald-500 text-white shadow-md',
+  sistema: 'border-border bg-muted text-muted-foreground',
 };
 
-const ETIQUETA_ACTOR: Record<LogEntry['actor'], string> = {
+const ETIQUETA_ACTOR: Record<string, string> = {
   agente: 'IA',
   guardrail: 'Guardrail',
   usuario: 'Prospecto',
   ejecutivo: 'Humano',
+  sistema: 'Sistema',
 };
 
 export default function AuditLog({
@@ -107,14 +150,47 @@ export default function AuditLog({
   lead: Lead;
   accionSimulada?: AccionRealizada | null;
 }) {
+  const [timeline, setTimeline] = useState<LogEntry[]>([]);
+  const [cargando, setCargando] = useState(false);
+
+  useEffect(() => {
+    if (!lead) return;
+
+    let cancelado = false;
+    setCargando(true);
+
+    fetchAuditoria(Number(lead.id))
+      .then((eventos) => {
+        if (cancelado) return;
+        if (eventos.length > 0) {
+          setTimeline(eventos.map(mapearEvento));
+        } else {
+          // Fallback: construir bitácora local si la API no devuelve eventos
+          setTimeline(construirBitacoraLocal(lead));
+        }
+      })
+      .catch(() => {
+        if (cancelado) return;
+        // En caso de error, usar bitácora local
+        setTimeline(construirBitacoraLocal(lead));
+      })
+      .finally(() => {
+        if (!cancelado) setCargando(false);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!lead) return null;
 
-  const timeline = construirBitacora(lead);
-
+  // Insertar acción del ejecutivo al inicio de la timeline
+  const timelineFinal = [...timeline];
   if (accionSimulada) {
     const esRechazo = accionSimulada.tipo === 'rechazar';
     const esEdicion = accionSimulada.tipo === 'editar_aprobar';
-    timeline.unshift({
+    timelineFinal.unshift({
       ts: new Date().toISOString(),
       actor: 'ejecutivo',
       nombreActor: 'Carlos Peña',
@@ -136,13 +212,17 @@ export default function AuditLog({
       <h3 className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
         <Clock className="size-4" aria-hidden="true" />
         Bitácora de auditoría
+        {cargando && (
+          <span className="ml-2 inline-block size-3 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        )}
       </h3>
 
       <ol className="relative ml-2.5 space-y-5 border-l border-border pl-6">
-        {timeline.map((log, index) => {
+        {timelineFinal.map((log, index) => {
           let Icono: React.ElementType = Bot;
           if (log.actor === 'guardrail') Icono = ShieldAlert;
           if (log.actor === 'usuario') Icono = User;
+          if (log.actor === 'sistema') Icono = User;
           if (log.actor === 'ejecutivo') Icono = log.esRechazo ? RotateCcw : CheckCircle2;
 
           return (
@@ -150,7 +230,7 @@ export default function AuditLog({
               <span
                 className={cn(
                   'absolute -left-[35px] top-0 flex size-6 items-center justify-center rounded-full border',
-                  ESTILO_ICONO[log.actor]
+                  ESTILO_ICONO[log.actor] ?? ESTILO_ICONO.sistema
                 )}
               >
                 <Icono className="size-3" aria-hidden="true" />
@@ -173,7 +253,7 @@ export default function AuditLog({
                           : 'bg-muted text-muted-foreground'
                       )}
                     >
-                      {ETIQUETA_ACTOR[log.actor]}
+                      {ETIQUETA_ACTOR[log.actor] ?? 'Sistema'}
                     </span>
                   </p>
                   <time

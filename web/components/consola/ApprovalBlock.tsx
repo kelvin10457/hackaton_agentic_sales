@@ -2,6 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  aprobarAccion as apiAprobar,
+  rechazarAccion as apiRechazar,
+} from '@/lib/consola-api';
+import {
   AlertTriangle,
   BookOpen,
   Bot,
@@ -81,23 +85,41 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
     asunto !== accion.borrador.asunto || cuerpo !== accion.borrador.cuerpo;
   const camposDeshabilitados = bloqueado || esObsoleta;
 
-  function aprobar() {
+  async function aprobar() {
     const tipo = editado ? 'editar_aprobar' : 'aprobar';
-    onActionComplete?.(tipo, { asunto, cuerpo });
-    toast({
-      tipo: 'success',
-      titulo: editado ? 'Borrador editado y aprobado' : 'Comunicación aprobada',
-      descripcion: 'Envío simulado — registrado en la bitácora con tu autoría.',
-    });
+    try {
+      await apiAprobar(Number(accion.id));
+      onActionComplete?.(tipo, { asunto, cuerpo });
+      toast({
+        tipo: 'success',
+        titulo: editado ? 'Borrador editado y aprobado' : 'Comunicación aprobada',
+        descripcion: 'Registrado en la bitácora del backend con tu autoría.',
+      });
+    } catch (err) {
+      toast({
+        tipo: 'error',
+        titulo: 'Error al aprobar',
+        descripcion: err instanceof Error ? err.message : 'Error desconocido',
+      });
+    }
   }
 
-  function rechazar() {
-    onActionComplete?.('rechazar', { motivo: motivoRechazo.trim() });
-    toast({
-      tipo: 'info',
-      titulo: 'Propuesta rechazada',
-      descripcion: 'El lead vuelve a nutrición — no se descarta.',
-    });
+  async function rechazar() {
+    try {
+      await apiRechazar(Number(accion.id), motivoRechazo.trim());
+      onActionComplete?.('rechazar', { motivo: motivoRechazo.trim() });
+      toast({
+        tipo: 'info',
+        titulo: 'Propuesta rechazada',
+        descripcion: 'El lead vuelve a nutrición — no se descarta.',
+      });
+    } catch (err) {
+      toast({
+        tipo: 'error',
+        titulo: 'Error al rechazar',
+        descripcion: err instanceof Error ? err.message : 'Error desconocido',
+      });
+    }
   }
 
   function canalAlternativo(nombre: string) {

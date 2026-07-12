@@ -1,4 +1,6 @@
+# pyrefly: ignore [missing-import]
 from fastapi import FastAPI, HTTPException
+# pyrefly: ignore [missing-import]
 from sqlalchemy import text
 
 from app.database import engine, Base
@@ -18,6 +20,16 @@ from app.routers import (
 
 app = FastAPI()
 
+# pyrefly: ignore [missing-import]
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Para el hackathon permitimos todo, o puedes restringir a ["http://localhost:3000", "https://tudominio.com"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(leads.router)

@@ -1,4 +1,4 @@
-export const USE_MOCKS = true; // flag global
+export const USE_MOCKS = false; // flag global para deshabilitar los mocks y usar la API real
 
 import type {
   MensajeChat,

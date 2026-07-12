@@ -61,7 +61,7 @@ export interface ConversacionRecuperada {
 /* También se reemplazan por los tipos generados cuando R2 publique.   */
 /* ------------------------------------------------------------------ */
 
-export type Banda = "caliente" | "tibio" | "frio";
+export type Banda = "caliente" | "tibio" | "frio" | "critico";
 
 export interface ScoreLead {
   interes: number;
@@ -82,14 +82,24 @@ export type TipoAccion =
   | "agendar_reunion"
   | "enviar_material"
   | "derivar_especialista"
-  | "derivar_a_ventas_corporativas";
+  | "derivar_a_ventas_corporativas"
+  // Valores del backend (TipoAccion enum en schemas.py)
+  | "llamada"
+  | "email"
+  | "whatsapp"
+  | "reunion"
+  | "demo"
+  | "propuesta_formal"
+  | "descuento";
 
 export type EstadoAccion =
   | "pendiente"
   | "aprobada"
   | "editada_y_aprobada"
   | "rechazada"
-  | "obsoleta";
+  | "obsoleta"
+  // Valor del backend
+  | "ejecutada";
 
 export interface AccionPropuesta {
   id: string;
