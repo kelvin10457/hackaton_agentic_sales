@@ -126,22 +126,15 @@ function NavIcon({
     href?: string;
     children: React.ReactNode;
 }) {
-    const Component = href ? Link : 'button';
-    const props = href ? { href } : { type: 'button' as const };
+    const className = cn(
+        'relative flex size-9 items-center justify-center rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 [&_svg]:size-[18px]',
+        activo
+            ? 'bg-white/15 text-white'
+            : 'text-white/50 hover:bg-white/10 hover:text-white'
+    );
 
-    return (
-        <Component
-            {...props}
-            aria-label={etiqueta}
-            title={etiqueta}
-            aria-current={activo ? 'page' : undefined}
-            className={cn(
-                'relative flex size-9 items-center justify-center rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 [&_svg]:size-[18px]',
-                activo
-                    ? 'bg-white/15 text-white'
-                    : 'text-white/50 hover:bg-white/10 hover:text-white'
-            )}
-        >
+    const content = (
+        <>
             {activo && (
                 <span
                     aria-hidden="true"
@@ -149,7 +142,33 @@ function NavIcon({
                 />
             )}
             {children}
-        </Component>
+        </>
+    );
+
+    if (href) {
+        return (
+            <Link
+                href={href}
+                aria-label={etiqueta}
+                title={etiqueta}
+                aria-current={activo ? 'page' : undefined}
+                className={className}
+            >
+                {content}
+            </Link>
+        );
+    }
+
+    return (
+        <button
+            type="button"
+            aria-label={etiqueta}
+            title={etiqueta}
+            aria-current={activo ? 'page' : undefined}
+            className={className}
+        >
+            {content}
+        </button>
     );
 }
 

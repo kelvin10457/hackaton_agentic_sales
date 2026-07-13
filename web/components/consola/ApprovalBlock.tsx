@@ -100,11 +100,11 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
           ? 'Queda registrado en la bitácora que la última palabra fue tuya.'
           : 'Registrado en la bitácora del backend con tu autoría.',
       });
-    } catch (err: any) {
+    } catch (err) {
       toast({
         tipo: 'error',
         titulo: 'Error al aprobar',
-        descripcion: err?.message || String(err),
+        descripcion: err instanceof Error ? err.message : String(err),
       });
     }
   }
@@ -118,11 +118,11 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
         titulo: 'Propuesta rechazada',
         descripcion: 'El lead vuelve a nutrición — no se descarta.',
       });
-    } catch (err: any) {
+    } catch (err) {
       toast({
         tipo: 'error',
         titulo: 'Error al rechazar',
-        descripcion: err?.message || String(err),
+        descripcion: err instanceof Error ? err.message : String(err),
       });
     }
   }
