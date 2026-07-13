@@ -6,16 +6,6 @@ Agente de IA que capta, califica y educa prospectos 24/7 — y **nunca envía un
 comunicación ni cruza una línea regulada sin la aprobación de un humano**, con
 traza auditable de cada decisión.
 
----
-
-## 📊 PROGRESO GLOBAL: **78 / 100**
-
-```
-Código y producto   ███████████████████░  97%   ← el alcance mínimo está COMPLETO
-Despliegue vivo     ░░░░░░░░░░░░░░░░░░░░   0%   ← 🚨 RIESGO CRÍTICO (Contrato de Stack §9)
-Entregables (R5)    ███░░░░░░░░░░░░░░░░░  15%   ← vídeo, doc explicativo, ZIP, 5 enlaces
-────────────────────────────────────────────────
-GLOBAL PONDERADO    ███████████████░░░░░  78%
 ```
 
 | Bloque | Estado | % |
