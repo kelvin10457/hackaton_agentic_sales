@@ -83,7 +83,7 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
   const esObsoleta = accion.estado === 'obsoleta';
   const editado =
     asunto !== accion.borrador.asunto || cuerpo !== accion.borrador.cuerpo;
-  const camposDeshabilitados = bloqueado || esObsoleta;
+  const camposDeshabilitados = bloqueado || esObsoleta || accion.estado !== 'pendiente';
 
   async function aprobar() {
     const tipo = editado ? 'editar_aprobar' : 'aprobar';
@@ -104,7 +104,7 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
       toast({
         tipo: 'error',
         titulo: 'Error al aprobar',
-        descripcion: err instanceof Error ? err.message : 'Error desconocido',
+        descripcion: err instanceof Error ? err.message : String(err),
       });
     }
   }
@@ -122,7 +122,7 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
       toast({
         tipo: 'error',
         titulo: 'Error al rechazar',
-        descripcion: err instanceof Error ? err.message : 'Error desconocido',
+        descripcion: err instanceof Error ? err.message : String(err),
       });
     }
   }

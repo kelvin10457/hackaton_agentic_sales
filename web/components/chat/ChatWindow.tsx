@@ -38,6 +38,7 @@ export function ChatWindow() {
   const [perfil, setPerfil] = useState<PerfilRiesgo | null>(null);
   const [email, setEmail] = useState("");
   const [emailEnviado, setEmailEnviado] = useState(false);
+  const [solicitudCorreoFinalizada, setSolicitudCorreoFinalizada] = useState(false);
   const [ofertaQuiz, setOfertaQuiz] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -60,7 +61,10 @@ export function ChatWindow() {
       // CONTRATO 4: si el quiz ya se hizo, no se vuelve a mostrar
       if (conv.quiz?.perfil_resultante) setPerfil(conv.quiz.perfil_resultante);
       // Si ya dejó su correo, la tarjeta de email no vuelve a aparecer.
-      if (conv.email_capturado) setEmailEnviado(true);
+      if (conv.email_capturado) {
+        setEmailEnviado(true);
+        setSolicitudCorreoFinalizada(true);
+      }
     } catch {
       setErrorInicial(true);
     } finally {
@@ -104,7 +108,10 @@ export function ChatWindow() {
     if (!token || !texto.trim()) return;
     // Si la tarjeta de correo estaba abierta y el usuario prefirió escribir,
     // se cierra: nada de recuadros persistentes que nadie pidió.
-    if (flujo === "email" || flujo === "consentimiento") setFlujo("inactivo");
+    if (flujo === "email" || flujo === "consentimiento") {
+      setFlujo("inactivo");
+      setSolicitudCorreoFinalizada(true);
+    }
     agregarMensaje("usuario", texto);
     setEscribiendo(true);
     try {
@@ -125,7 +132,7 @@ export function ChatWindow() {
       // B2B no tiene quiz (es de perfil de riesgo personal): el agente pide el
       // correo directamente. También ocurre en B2C si ya completó el quiz.
       // Nunca se re-pide un correo ya entregado.
-      if (respuesta.accion === "pedir_email" && !emailEnviado) {
+      if (respuesta.accion === "pedir_email" && !emailEnviado && !solicitudCorreoFinalizada) {
         setFlujo("email");
       }
     } catch {
@@ -174,6 +181,7 @@ export function ChatWindow() {
   function confirmarEmail(correo: string) {
     setEmail(correo);
     setFlujo("inactivo");
+    setSolicitudCorreoFinalizada(true);
     agregarMensaje("usuario", `Mi correo es ${correo}`);
     setEscribiendo(true);
     window.setTimeout(() => {
@@ -300,10 +308,13 @@ export function ChatWindow() {
           {flujo === "quiz" && quiz && (
             <QuizCard quiz={quiz} onComplete={completarQuiz} />
           )}
-          {flujo === "email" && !emailEnviado && (
+          {flujo === "email" && !emailEnviado && !solicitudCorreoFinalizada && (
             <EmailCaptureCard
               onSubmit={confirmarEmail}
-              onDismiss={() => setFlujo("inactivo")}
+              onDismiss={() => {
+                setFlujo("inactivo");
+                setSolicitudCorreoFinalizada(true);
+              }}
             />
           )}
           {flujo === "consentimiento" && (
