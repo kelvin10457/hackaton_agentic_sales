@@ -37,6 +37,7 @@ export function ChatWindow() {
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [perfil, setPerfil] = useState<PerfilRiesgo | null>(null);
   const [email, setEmail] = useState("");
+  const [emailEnviado, setEmailEnviado] = useState(false);
   const [ofertaQuiz, setOfertaQuiz] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +59,8 @@ export function ChatWindow() {
       if (conv.badge_tipo) setBadgeTipo(conv.badge_tipo);
       // CONTRATO 4: si el quiz ya se hizo, no se vuelve a mostrar
       if (conv.quiz?.perfil_resultante) setPerfil(conv.quiz.perfil_resultante);
+      // Si ya dejó su correo, la tarjeta de email no vuelve a aparecer.
+      if (conv.email_capturado) setEmailEnviado(true);
     } catch {
       setErrorInicial(true);
     } finally {
@@ -99,6 +102,9 @@ export function ChatWindow() {
 
   async function handleSend(texto: string) {
     if (!token || !texto.trim()) return;
+    // Si la tarjeta de correo estaba abierta y el usuario prefirió escribir,
+    // se cierra: nada de recuadros persistentes que nadie pidió.
+    if (flujo === "email" || flujo === "consentimiento") setFlujo("inactivo");
     agregarMensaje("usuario", texto);
     setEscribiendo(true);
     try {
@@ -111,9 +117,15 @@ export function ChatWindow() {
       if (respuesta.accion === "proponer_quiz" && !perfil) {
         setOfertaQuiz(true);
       }
+      // El prospecto pidió el quiz por texto → se abre el REAL de inmediato
+      // (jamás lo improvisa el LLM: es el cuestionario fijo de cumplimiento).
+      if (respuesta.accion === "abrir_quiz" && !perfil) {
+        void comenzarQuiz();
+      }
       // B2B no tiene quiz (es de perfil de riesgo personal): el agente pide el
       // correo directamente. También ocurre en B2C si ya completó el quiz.
-      if (respuesta.accion === "pedir_email") {
+      // Nunca se re-pide un correo ya entregado.
+      if (respuesta.accion === "pedir_email" && !emailEnviado) {
         setFlujo("email");
       }
     } catch {
@@ -184,6 +196,7 @@ export function ChatWindow() {
         comunicaciones_comerciales: comercial,
       });
       agregarMensaje("agente", r.mensaje);
+      if (datos) setEmailEnviado(true);
     } catch {
       agregarMensaje(
         "agente",
@@ -287,7 +300,12 @@ export function ChatWindow() {
           {flujo === "quiz" && quiz && (
             <QuizCard quiz={quiz} onComplete={completarQuiz} />
           )}
-          {flujo === "email" && <EmailCaptureCard onSubmit={confirmarEmail} />}
+          {flujo === "email" && !emailEnviado && (
+            <EmailCaptureCard
+              onSubmit={confirmarEmail}
+              onDismiss={() => setFlujo("inactivo")}
+            />
+          )}
           {flujo === "consentimiento" && (
             <ConsentimientoModal email={email} onComplete={completarConsentimiento} />
           )}

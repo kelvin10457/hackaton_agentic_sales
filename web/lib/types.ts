@@ -17,9 +17,10 @@ export interface RespuestaAgente {
   guardrail?: string;
   /** El backend puede sugerir una acción de UI (p. ej. ofrecer el quiz) */
   // Siguiente paso que debe ofrecer la UI:
-  //   proponer_quiz → tarjeta del quiz de perfil de riesgo (solo B2C)
+  //   proponer_quiz → botón del quiz de perfil de riesgo (solo B2C)
+  //   abrir_quiz    → el prospecto lo pidió por texto: abrir la tarjeta YA
   //   pedir_email   → captura del correo (B2B, o B2C que ya hizo el quiz)
-  accion?: "proponer_quiz" | "pedir_email";
+  accion?: "proponer_quiz" | "abrir_quiz" | "pedir_email";
 }
 
 export interface PreguntaQuiz {
@@ -57,6 +58,10 @@ export interface ConversacionRecuperada {
   quiz?: { iniciado: boolean; perfil_resultante?: PerfilRiesgo };
   estado_flujo: string;
   badge_tipo?: TipoLead;
+  /** Cómo pidió que lo llamen (identificación progresiva) */
+  nombre?: string | null;
+  /** Ya dejó su correo → la UI no vuelve a pedirlo */
+  email_capturado?: boolean;
 }
 
 /* ------------------------------------------------------------------ */

@@ -12,8 +12,11 @@ import { Button } from "@/components/shared/button";
  */
 export function EmailCaptureCard({
   onSubmit,
+  onDismiss,
 }: {
   onSubmit: (email: string) => void;
+  /** "Ahora no": la tarjeta se cierra sin fricción — el correo no es obligatorio */
+  onDismiss?: () => void;
 }) {
   const [valor, setValor] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +71,15 @@ export function EmailCaptureCard({
         <p id="email-error" role="alert" className="mt-1.5 text-xs font-medium text-destructive">
           {error}
         </p>
+      )}
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="mt-2 text-[11px] font-medium text-muted-foreground underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Ahora no, gracias
+        </button>
       )}
     </form>
   );

@@ -114,6 +114,26 @@ export async function registrarYLogin(
 // Helpers genéricos
 // ──────────────────────────────────────────────────────────────────────────────
 
+/**
+ * FastAPI devuelve `detail` como string (HTTPException) o como ARRAY de objetos
+ * (error 422 de validación). Sin esto, el toast mostraba "[object Object]".
+ */
+function formatearDetalle(
+  detail: unknown,
+  status: number,
+  path: string
+): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail
+      .map((d) => (d && typeof d === "object" && "msg" in d ? String(d.msg) : JSON.stringify(d)))
+      .join(" · ");
+    if (msgs) return msgs;
+  }
+  if (detail && typeof detail === "object") return JSON.stringify(detail);
+  return `Error ${status} en ${path}`;
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -127,7 +147,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.detail ?? `Error ${res.status} en ${path}`);
+    throw new Error(formatearDetalle(body?.detail, res.status, path));
   }
 
   return res.json() as Promise<T>;

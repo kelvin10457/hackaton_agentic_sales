@@ -54,8 +54,7 @@ from app.schemas import (
 )
 
 # Núcleo agéntico (R1). El borde HTTP (app/) puede importar core/; nunca al revés.
-from core.servicio_agente import procesar_turno
-from tools.inferir_senales import inferir_senales
+from core.servicio_agente import procesar_turno, senales_desde_historial
 from tools.obtener_quiz import obtener_preguntas_quiz, calcular_perfil_riesgo
 
 router = APIRouter(prefix="/api/chat", tags=["Chat (pública)"])
@@ -68,6 +67,7 @@ _SENDER_SISTEMA = "system"   # metadatos (badge/perfil); no se pintan en el chat
 # Marcadores de estado guardados como mensajes de sistema (continuidad sin tabla extra).
 _MARCA_BADGE = "[badge]"
 _MARCA_PERFIL = "[quiz_perfil]"
+_MARCA_NOMBRE = "[nombre]"
 
 
 def _now() -> datetime:
@@ -96,10 +96,13 @@ def _historial_para_agente(mensajes: list[Message]) -> list[dict]:
     return historial
 
 
-def _leer_estado_sistema(mensajes: list[Message]) -> tuple[str | None, str | None]:
-    """Recupera (badge, perfil_quiz) desde los mensajes de sistema."""
+def _leer_estado_sistema(
+    mensajes: list[Message],
+) -> tuple[str | None, str | None, str | None]:
+    """Recupera (badge, perfil_quiz, nombre) desde los mensajes de sistema."""
     badge = None
     perfil = None
+    nombre = None
     for m in mensajes:
         if m.sender != _SENDER_SISTEMA:
             continue
@@ -107,7 +110,9 @@ def _leer_estado_sistema(mensajes: list[Message]) -> tuple[str | None, str | Non
             badge = m.content[len(_MARCA_BADGE):].strip() or None
         elif m.content.startswith(_MARCA_PERFIL):
             perfil = m.content[len(_MARCA_PERFIL):].strip() or None
-    return badge, perfil
+        elif m.content.startswith(_MARCA_NOMBRE):
+            nombre = m.content[len(_MARCA_NOMBRE):].strip() or None
+    return badge, perfil, nombre
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -156,7 +161,7 @@ def obtener_conversacion(
 ):
     conv = _cargar_conversacion(db, conversacion_id)
     mensajes = _mensajes_ordenados(conv)
-    badge, perfil = _leer_estado_sistema(mensajes)
+    badge, perfil, nombre = _leer_estado_sistema(mensajes)
 
     historial = [
         MensajeHistorial(
@@ -176,6 +181,10 @@ def obtener_conversacion(
         badge_tipo=badge if badge in ("B2C", "B2B") else None,
         preguntas_respondidas=[],
         quiz=EstadoQuiz(iniciado=perfil is not None, perfil_resultante=perfil),
+        nombre=nombre,
+        # lead_id != 0 ⇒ el prospecto ya se identificó y entró al CRM:
+        # el frontend no debe volver a pedirle el correo.
+        email_capturado=bool(conv.lead_id),
         historial=historial,
         # `messages` mantiene el contrato de segregación (test_superficies).
         messages=[
@@ -208,20 +217,24 @@ def enviar_mensaje(
 
     mensajes_previos = _mensajes_ordenados(conv)
     historial = _historial_para_agente(mensajes_previos)
-    # Si ya hizo el quiz, el agente no vuelve a ofrecérselo (Contrato 4 de R3).
-    _, quiz_perfil = _leer_estado_sistema(mensajes_previos)
+    # Estado de la conversación (Contrato 4 de R3: nada se pregunta dos veces).
+    _, quiz_perfil, nombre = _leer_estado_sistema(mensajes_previos)
+    email_capturado = bool(conv.lead_id)   # ya se identificó y entró al CRM
 
     # 1) Persistir el mensaje del usuario.
     db.add(Message(sender=_SENDER_USUARIO, content=texto_usuario, conversation_id=conv.id))
     db.flush()
 
     # 2) Despertar al núcleo agéntico (R1): un turno del chat.
-    resultado = procesar_turno(historial, texto_usuario, quiz_perfil=quiz_perfil)
+    resultado = procesar_turno(
+        historial, texto_usuario,
+        quiz_perfil=quiz_perfil, nombre=nombre, email_capturado=email_capturado,
+    )
 
     # 3) Persistir la respuesta del agente.
     db.add(Message(sender=_SENDER_AGENTE, content=resultado["mensaje"], conversation_id=conv.id))
 
-    # 4) Guardar badge de clasificación la primera vez (continuidad).
+    # 4) Guardar badge y NOMBRE la primera vez (continuidad + CRM con nombre real).
     badge = resultado.get("badge_tipo")
     if badge in ("B2C", "B2B"):
         ya_tiene = any(
@@ -234,6 +247,20 @@ def enviar_mensaje(
                 content=f"{_MARCA_BADGE}{badge}",
                 conversation_id=conv.id,
             ))
+
+    nombre_detectado = resultado.get("nombre_detectado")
+    if nombre_detectado and not nombre:
+        db.add(Message(
+            sender=_SENDER_SISTEMA,
+            content=f"{_MARCA_NOMBRE}{nombre_detectado}",
+            conversation_id=conv.id,
+        ))
+        # Si el lead ya existe en el CRM, su nombre se corrige de inmediato.
+        if conv.lead_id:
+            lead = db.query(LeadV2Model).filter(LeadV2Model.id == conv.lead_id).first()
+            if lead:
+                lead.nombre = nombre_detectado
+                lead.updated_at = _now()
 
     db.commit()
 
@@ -351,17 +378,13 @@ def _nombre_desde_email(email: str | None) -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _senales_del_historial(mensajes: list[Message]) -> dict:
-    """Adapta los mensajes de BD al formato que espera la tool determinista."""
-    textos_usuario = [m.content for m in mensajes if m.sender == _SENDER_USUARIO]
-
-    # El quiz lo marca el CÓDIGO (mensaje de sistema), nunca el LLM.
-    quiz_perfil = None
-    for m in mensajes:
-        if m.sender == _SENDER_SISTEMA and m.content.startswith(_MARCA_PERFIL):
-            quiz_perfil = m.content[len(_MARCA_PERFIL):].strip() or None
-            break
-
-    return inferir_senales(textos_usuario, quiz_perfil=quiz_perfil)
+    """Adapta los mensajes de BD y delega en la MISMA lógica que usa el turno
+    del chat (senales_desde_historial): extracción global + atribución
+    pregunta→respuesta. Una sola verdad para el chat y el CRM.
+    """
+    _, quiz_perfil, _ = _leer_estado_sistema(mensajes)
+    historial = _historial_para_agente(mensajes)
+    return senales_desde_historial(historial, quiz_perfil=quiz_perfil)
 
 
 
@@ -492,7 +515,10 @@ def registrar_consentimiento(
         )
 
     # Con consentimiento + email: el lead se identifica y entra al CRM (crea o actualiza).
-    nombre = _nombre_desde_email(body.email)
+    # El nombre REAL lo dio el prospecto en el chat (marker [nombre]); el prefijo
+    # del correo es solo el último recurso si nunca quiso decirlo.
+    _, _, nombre_chat = _leer_estado_sistema(_mensajes_ordenados(conv))
+    nombre = nombre_chat or _nombre_desde_email(body.email)
     try:
         lead_in = LeadV2Read(
             id=0,  # el id real lo asigna el CRM; upsert_contacto no lo usa

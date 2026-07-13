@@ -637,9 +637,10 @@ class RespuestaAgente(BaseModel):
     badge_tipo: Literal["B2C", "B2B"] | None = None
     guardrail: str | None = None          # "G1" | "G2" | ... si se activó una malla
     # Siguiente paso que el frontend debe ofrecer:
-    #   proponer_quiz → tarjeta del quiz de perfil de riesgo (solo B2C)
+    #   proponer_quiz → botón del quiz de perfil de riesgo (solo B2C)
+    #   abrir_quiz    → el prospecto lo pidió por texto: abrir la tarjeta YA
     #   pedir_email   → captura del correo (B2B, o B2C que ya hizo el quiz)
-    accion: Literal["proponer_quiz", "pedir_email"] | None = None
+    accion: Literal["proponer_quiz", "abrir_quiz", "pedir_email"] | None = None
 
 
 class MensajeHistorial(BaseModel):
@@ -666,6 +667,9 @@ class ConversacionRecuperada(BaseModel):
     badge_tipo: Literal["B2C", "B2B"] | None = None
     preguntas_respondidas: list[str] = Field(default_factory=list)
     quiz: EstadoQuiz = Field(default_factory=EstadoQuiz)
+    # Estado conversacional para no repetir pasos al volver (Contrato 4):
+    nombre: str | None = None            # cómo pidió que lo llamen
+    email_capturado: bool = False        # ya dejó su correo → no volver a pedirlo
     historial: list[MensajeHistorial] = Field(default_factory=list)
     messages: list[MessageRead] = Field(default_factory=list)
 
