@@ -13,7 +13,7 @@ import {
 
 import {
     fetchLeadsEnriquecidos,
-    login,
+    registrarYLogin,
     isAuthenticated,
     clearToken,
 } from '@/lib/consola-api';
@@ -39,7 +39,7 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
         setError('');
         setCargando(true);
         try {
-            await login(email, password);
+            await registrarYLogin("Ejecutivo", email, password);
             onSuccess();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error al iniciar sesión');

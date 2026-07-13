@@ -76,7 +76,9 @@ export async function obtenerQuiz(): Promise<Quiz> {
     await delay(200);
     return mockQuiz;
   }
-  const res = await fetch(`${API_URL}/api/chat/quiz`);
+  const res = await fetch(`${API_URL}/api/chat/quiz`, {
+    method: "POST",
+  });
   if (!res.ok) throw new Error("No se pudo obtener el quiz");
   return res.json();
 }
