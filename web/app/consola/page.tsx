@@ -118,15 +118,20 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
 function NavIcon({
     activo,
     etiqueta,
+    href,
     children,
 }: {
     activo?: boolean;
     etiqueta: string;
+    href?: string;
     children: React.ReactNode;
 }) {
+    const Component = href ? Link : 'button';
+    const props = href ? { href } : { type: 'button' as const };
+
     return (
-        <button
-            type="button"
+        <Component
+            {...props}
             aria-label={etiqueta}
             title={etiqueta}
             aria-current={activo ? 'page' : undefined}
@@ -144,7 +149,7 @@ function NavIcon({
                 />
             )}
             {children}
-        </button>
+        </Component>
     );
 }
 
@@ -194,9 +199,9 @@ export default function ConsolaPage() {
 
     return (
         <ToastProvider>
-            <div className="flex h-dvh overflow-hidden bg-background">
+            <div className="flex min-h-screen bg-background">
                 {/* Rail de navegación (superficie interna con marca) */}
-                <aside className="hidden w-14 shrink-0 flex-col items-center gap-1.5 bg-futuro-base py-4 md:flex">
+                <aside className="sticky top-0 hidden h-screen w-14 shrink-0 flex-col items-center gap-1.5 bg-futuro-base py-4 md:flex">
                     <Link
                         href="/"
                         aria-label="Ir a la página principal"
@@ -205,13 +210,13 @@ export default function ConsolaPage() {
                         <LogoMark claro />
                     </Link>
                     <nav aria-label="Secciones de la consola" className="flex flex-col gap-1.5">
-                        <NavIcon activo etiqueta="Pipeline de leads">
+                        <NavIcon activo etiqueta="Pipeline de leads" href="/consola">
                             <LayoutDashboard aria-hidden="true" />
                         </NavIcon>
-                        <NavIcon etiqueta="Academia (próximamente)">
+                        <NavIcon etiqueta="Academia (próximamente)" href="/chat">
                             <GraduationCap aria-hidden="true" />
                         </NavIcon>
-                        <NavIcon etiqueta="Configuración (próximamente)">
+                        <NavIcon etiqueta="Configuración (próximamente)" href="/consola">
                             <Settings aria-hidden="true" />
                         </NavIcon>
                     </nav>
@@ -247,7 +252,7 @@ export default function ConsolaPage() {
                         </div>
                         <div className="flex items-center gap-2.5">
                             <span className="hidden rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-block">
-                                Conectado al backend
+                                Conectado exitosamente
                             </span>
                             <div className="flex items-center gap-2.5 rounded-full border border-border py-1 pl-1 pr-3">
                                 <span

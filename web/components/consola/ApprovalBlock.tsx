@@ -83,7 +83,7 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
   const esObsoleta = accion.estado === 'obsoleta';
   const editado =
     asunto !== accion.borrador.asunto || cuerpo !== accion.borrador.cuerpo;
-  const camposDeshabilitados = bloqueado || esObsoleta;
+  const camposDeshabilitados = bloqueado || esObsoleta || accion.estado !== 'pendiente';
 
   async function aprobar() {
     const tipo = editado ? 'editar_aprobar' : 'aprobar';
@@ -100,11 +100,11 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
           ? 'Queda registrado en la bitácora que la última palabra fue tuya.'
           : 'Registrado en la bitácora del backend con tu autoría.',
       });
-    } catch (err) {
+    } catch (err: any) {
       toast({
         tipo: 'error',
         titulo: 'Error al aprobar',
-        descripcion: err instanceof Error ? err.message : 'Error desconocido',
+        descripcion: err?.message || String(err),
       });
     }
   }
@@ -118,11 +118,11 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
         titulo: 'Propuesta rechazada',
         descripcion: 'El lead vuelve a nutrición — no se descarta.',
       });
-    } catch (err) {
+    } catch (err: any) {
       toast({
         tipo: 'error',
         titulo: 'Error al rechazar',
-        descripcion: err instanceof Error ? err.message : 'Error desconocido',
+        descripcion: err?.message || String(err),
       });
     }
   }
