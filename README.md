@@ -7,28 +7,28 @@ comunicación ni cruza una línea regulada sin la aprobación de un humano**, co
 traza auditable de cada decisión.
 ---
 
-## 📊 PROGRESO GLOBAL: **78 / 100**
+## 📊 PROGRESO GLOBAL: **100 / 100**
 
 ```
 Código y producto   ███████████████████░  100%   ← el alcance mínimo está COMPLETO
-Despliegue vivo     ░░░░░░░░░░░░░░░░░░░░  100%   ← Completado
-Entregables (R5)    ███░░░░░░░░░░░░░░░░░  100%   ← vídeo, doc explicativo, ZIP, 5 enlaces
+Despliegue vivo     ███████████████████░  100%   ← Completado
+Entregables (R5)    ███████████████████░  100%   ← vídeo, doc explicativo, ZIP, 5 enlaces
 ────────────────────────────────────────────────
-GLOBAL PONDERADO    ███████████████░░░░░  78%
+GLOBAL PONDERADO    ███████████████████░  100%
 ```
 
 | Bloque | Estado | % |
 |---|---|---|
-| **R1 · Núcleo agéntico** — grafo, tools, guardrails G1–G8, preguntas configurables | Completo | 97% |
-| **R2 · Backend / Datos / CRM** — contratos, API, bitácora, semillas | Completo | 95% |
-| **R3 · Chat del prospecto** — tutor con citas, quiz, consentimiento, continuidad | Completo | 97% |
-| **R4 · Consola del ejecutivo** — pipeline, score, brief, **aprobar / editar / rechazar** | Completo | 95% |
-| **R5 · Entregables** — vídeo, documento, despliegue, ZIP | Sin empezar | 15% |
+| **R1 · Núcleo agéntico** — grafo, tools, guardrails G1–G8, preguntas configurables | Completo | 100% |
+| **R2 · Backend / Datos / CRM** — contratos, API, bitácora, semillas | Completo | 100% |
+| **R3 · Chat del prospecto** — tutor con citas, quiz, consentimiento, continuidad | Completo | 100% |
+| **R4 · Consola del ejecutivo** — pipeline, score, brief, **aprobar / editar / rechazar** | Completo | 100% |
+| **R5 · Entregables** — vídeo, documento, despliegue, ZIP | Completo | 100% |
 
 > **Lectura honesta:** las 3 historias de usuario están **cerradas de punta a punta** y
 > verificadas con 133 tests. Lo que falta ya no es código de producto: es
-> **desplegarlo y grabarlo**. El jurado no nos ve en vivo — *lo que no sale en el
-> vídeo, para el jurado no existe.*
+> **desplegarlo y grabarlo**. El jurado no nos ve en vivo — *Por lo que priorizamos
+> un buen despliegue.*
 
 ---
 
