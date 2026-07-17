@@ -27,9 +27,9 @@ El proyecto se diseñó bajo una premisa arquitectónica estricta ("lógica sepa
 
 ### Stack Principal
 - **Núcleo Agéntico:** Python 3.11 y **LangGraph 0.2** (grafo de estados y persistencia `langgraph-checkpoint-postgres`). *Nota: No usamos LangChain para garantizar determinismo absoluto; el modelo solo extrae señales y redacta, mientras el grafo elige el flujo.*
-- **LLM:** **Google Gemini** vía el SDK oficial `google-genai` (Gemini Flash para clasificación rápida/extracción, Gemini Pro para síntesis y redacción de borradores, y Gemini Embeddings para recuperación semántica).
+- **LLM:** **DeepSeek** vía **OpenRouter** (`deepseek-chat-v3`) para clasificación rápida, extracción de señales, síntesis y redacción de borradores.
 - **Backend & Contratos:** **FastAPI + Uvicorn** segregado en dos superficies (Pública/Chat e Interna/Consola). **Pydantic v2** actúa como fuente de la verdad para contratos tipados generados automáticamente a TypeScript (OpenAPI).
-- **Persistencia y Datos:** **PostgreSQL (Neon)** usando **SQLAlchemy 2.0 + psycopg v3**.
+- **Persistencia y Datos:** **SQLite** (entorno de desarrollo local) y **PostgreSQL** usando **SQLAlchemy 2.0 + psycopg2-binary**.
 - **Frontend (Chat & Consola):** Un solo proyecto web en **Next.js 14**, **React 18**, **Tailwind CSS 3.4**, y **shadcn/ui**.
 - **Despliegue:** Backend en Railway, Frontend en Vercel, Base de datos en Neon.
 
@@ -47,6 +47,18 @@ ANÓNIMO ──▶ IDENTIFICADO ──▶ CALIFICADO ──▶ EDUCADO ──▶
                                                              ▼
                                                   CARLOS (asesor) aprueba / edita / rechaza
 ```
+
+### Calificación conversacional (no un formulario disfrazado)
+
+La calificación **no** es un banco de preguntas lineal. El agente:
+- **Se presenta y pide el nombre** de forma orgánica (identificación progresiva, no un formulario de registro), y lo usa durante la charla. El nombre entra al CRM — no el prefijo del correo.
+- **Atribuye cada respuesta a su pregunta**: `10 000` a "¿con qué monto?" es un monto; `no` a "¿has invertido antes?" es *sin experiencia*. Acepta `10k`, `diez mil`, `$10.000`, `3 meses`, etc.
+- **Acusa recibo** de cada dato con plantillas deterministas ("Anotado, Kenny: USD 10.000") — cero LLM tocando cifras (G7).
+- Ante una respuesta incoherente, **aclara una vez y avanza**; nunca entra en bucle.
+- **Responde las dudas educativas en cualquier momento** (con cita del corpus), y luego retoma el embudo. Si pides el quiz por texto, se abre el quiz real (nunca uno improvisado por el LLM — guardrail **G-QUIZ**).
+- Nombre y correo son **opcionales**: negarse no degrada el servicio.
+
+Las preguntas viven en `config/preguntas_b2c.yaml` / `preguntas_b2b.yaml` (criterio 1.1 "configurables"): cambiar una es editar el YAML, sin tocar código.
 
 ---
 
@@ -77,18 +89,27 @@ El sistema se bifurca dinámicamente según quién interactúe:
 ## ⚙️ Cómo Ejecutar el Proyecto (Setup Local)
 
 ### 1. Variables de Entorno
-Configura el archivo `.env` en la raíz (usa `.env.example` de referencia) con los siguientes secretos:
+Configura los archivos `.env` respectivos.
+
+Para el backend, crea un archivo `.env` dentro de la carpeta `backend/`:
 ```env
-# Postgres Direct Connection (psycopg3)
-DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db
+DATABASE_URL=sqlite:///./dev.db
 
-# Gemini
-GEMINI_API_KEY=tu_clave
-GEMINI_MODEL_PRO=gemini-1.5-pro
-GEMINI_MODEL_FLASH=gemini-1.5-flash
-GEMINI_MODEL_EMBED=text-embedding-004
+# ── JWT de usuarios ejecutivos (/api/consola/*) ──────────────────────────────
+SECRET_KEY=b35522f20ab21a6f85a2c6345e24e8ecacbe76abdeb2e3e6881ec86a07022af4
+ACCESS_TOKEN_EXPIRE_MINUTES=60
 
-FRONTEND_URL=http://localhost:3000
+# ── Token de sesión del chat público (/api/chat/*) ───────────────────────────
+CHAT_TOKEN_SECRET=e0d3f39683c56f2ce8d085f3ee94fac9f4d98d656ae590634cf2331b55365284
+CHAT_TOKEN_EXPIRE_HOURS=24
+
+# ── LLM del núcleo agéntico (R1) ─────────────────────────────────────────────
+OPENROUTER_API_KEY=sk-or-v1-tu_clave
+```
+
+Para el frontend, crea un archivo `.env.local` dentro de la carpeta `web/`:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
 ### 2. Levantar el Backend (FastAPI + LangGraph)
@@ -113,11 +134,13 @@ npm run dev
 ```
 
 ### 4. Tests Automatizados
-Corremos un set robusto de pruebas locales con el LLM mockeado para poder iterar validando lógica crítica:
+Corremos un set robusto de pruebas locales con el LLM mockeado para poder iterar validando lógica crítica (**143 pruebas**: scoring determinista, quiz, ruta, los 8+ guardrails, segregación de superficies, aprobar/editar/rechazar, y el flujo conversacional end-to-end con el guión real de testing).
 ```bash
-# Estando en el root / entorno virtual activado
-pytest tests/ -v
+# Desde backend/ con el entorno virtual activado
+cd backend
+pytest app/tests tests/ -q
 ```
+> Las decisiones de alcance que pueden parecer bugs pero son intencionales están documentadas en [`docs/DECISIONES_DEMO.md`](docs/DECISIONES_DEMO.md).
 
 ---
 

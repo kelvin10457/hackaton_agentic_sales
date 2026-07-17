@@ -316,6 +316,7 @@ function mapAccion(raw: AccionPropuestaRaw): AccionPropuesta {
     estado: raw.estado as EstadoAccion,
     revisado_por: raw.revisado_por,
     editado_por_humano: raw.editado_por_humano ?? false,
+    motivo_rechazo: raw.motivo_rechazo ?? null,
   };
 }
 

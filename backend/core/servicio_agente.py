@@ -199,21 +199,29 @@ def _pregunta_por_nombre_propio(mensaje: str) -> bool:
     return ("mi nombre" in bajo or "tu nombre" in bajo or "mi correo" in bajo) and "?" in mensaje
 
 
-_INICIOS_PREGUNTA = (
-    "qué", "que ", "cómo", "como ", "cuál", "cual", "cuánto", "cuanto",
-    "por qué", "porque ", "explica", "explíca", "profundiza", "dime",
-    "háblame", "hablame", "cuéntame", "cuentame", "diferencia", "quién",
-    "quien", "dónde", "donde",
-)
+# Palabras que, como PRIMERA palabra, indican una pregunta educativa.
+# Match por palabra completa: "cualquier" NO es "cuál".
+_PALABRAS_PREGUNTA = {
+    "qué", "que", "cómo", "como", "cuál", "cual", "cuánto", "cuanto",
+    "explica", "explícame", "explicame", "profundiza", "profundízame",
+    "dime", "háblame", "hablame", "cuéntame", "cuentame", "quién", "quien",
+    "dónde", "donde",
+}
 
 
 def _es_pregunta_educativa(mensaje: str) -> bool:
-    bajo = (mensaje or "").lower().strip()
     if _pregunta_por_nombre_propio(mensaje) or _es_meta_flujo(mensaje):
         return False
     if "?" in mensaje:
         return True
-    return any(bajo.startswith(i) for i in _INICIOS_PREGUNTA)
+    bajo = (mensaje or "").lower().strip()
+    if bajo.startswith(("por qué", "porque ", "diferencia entre")):
+        return True
+    palabras = bajo.split()
+    if not palabras:
+        return False
+    primera = palabras[0].strip("¿?¡!.,")
+    return primera in _PALABRAS_PREGUNTA
 
 
 # ── Señales desde el historial (atribución pregunta → respuesta) ─────────────

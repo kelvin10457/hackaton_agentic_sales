@@ -120,6 +120,7 @@ export interface AccionPropuesta {
   estado: EstadoAccion;
   revisado_por?: string | null;
   editado_por_humano?: boolean;
+  motivo_rechazo?: string | null;
 }
 
 export interface Lead {

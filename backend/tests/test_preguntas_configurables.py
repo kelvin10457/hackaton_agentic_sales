@@ -58,12 +58,17 @@ def test_sin_preguntas_pendientes_devuelve_none():
 
 
 # ── El agente las usa de verdad ──────────────────────────────────────────────
+# El flujo v2 arranca con la identificación progresiva (pide el nombre), así que
+# los guiones incluyen el nombre y el helper lo propaga como lo hace el router.
 
 def _conversar(guion: list[str], quiz: str | None = None) -> list[dict]:
     historial: list[dict] = []
     salidas = []
+    nombre: str | None = None
     for mensaje in guion:
-        r = procesar_turno(historial, mensaje, quiz_perfil=quiz)
+        r = procesar_turno(historial, mensaje, quiz_perfil=quiz, nombre=nombre)
+        if r.get("nombre_detectado"):
+            nombre = r["nombre_detectado"]
         historial.append({"rol": "usuario", "texto": mensaje})
         historial.append({"rol": "agente", "texto": r["mensaje"]})
         salidas.append(r)
@@ -73,6 +78,7 @@ def _conversar(guion: list[str], quiz: str | None = None) -> list[dict]:
 def test_b2c_el_agente_hace_las_preguntas_del_yaml_sin_repetir():
     salidas = _conversar([
         "Hola",
+        "Kenny",                      # ← identificación progresiva
         "Quiero invertir mis ahorros",
         "Tengo unos 10.000 dolares",
         "Me gustaria verlo en unos meses",
@@ -81,25 +87,30 @@ def test_b2c_el_agente_hace_las_preguntas_del_yaml_sin_repetir():
     del_yaml = _textos_yaml("b2c")
 
     assert len(dichos) == len(set(dichos)), "el agente repitió un mensaje"
-    assert sum(1 for m in dichos if m in del_yaml) >= 3, \
-        "el agente no está usando las preguntas de config/"
+    # Las preguntas del YAML aparecen embebidas (con acuse de recibo delante):
+    # "Anotado, Kenny: USD 10.000. ¿En cuánto tiempo...?".
+    usadas = sum(1 for m in dichos if any(p in m for p in del_yaml))
+    assert usadas >= 3, "el agente no está usando las preguntas de config/"
 
 
 def test_b2c_tras_calificar_ofrece_el_quiz():
     salidas = _conversar([
-        "Quiero invertir", "Tengo 10.000 dolares", "lo quiero ya", "nunca he invertido",
+        "Kenny", "Quiero invertir", "Tengo 10.000 dolares", "lo quiero ya",
+        "nunca he invertido",
     ])
     assert salidas[-1]["accion"] == "proponer_quiz"
 
 
 def test_b2c_que_ya_hizo_el_quiz_no_lo_vuelve_a_ofrecer():
-    """Contrato 4: no se repite un paso ya completado."""
-    salidas = _conversar(
-        ["quiero invertir 10000 ya, nunca he invertido", "listo"],
-        quiz="moderado",
+    """Contrato 4: no se repite un paso ya completado. Con el quiz hecho y el
+    email capturado, jamás se vuelve a ofrecer ni el quiz ni el correo."""
+    r = procesar_turno(
+        [{"rol": "usuario", "texto": "quiero invertir 10000 ya, nunca he invertido"},
+         {"rol": "agente", "texto": "Listo. ¿A qué correo te envío tu resultado?"}],
+        "cualquier cosa", quiz_perfil="moderado", nombre="Kenny", email_capturado=True,
     )
-    assert all(r["accion"] != "proponer_quiz" for r in salidas)
-    assert salidas[-1]["accion"] == "pedir_email"
+    assert r["accion"] != "proponer_quiz"
+    assert "correo" not in r["mensaje"].lower()
 
 
 def test_b2b_se_clasifica_y_no_tiene_quiz():
@@ -107,19 +118,24 @@ def test_b2b_se_clasifica_y_no_tiene_quiz():
     El quiz es de perfil de riesgo PERSONAL: no aplica (Biblia §2.5)."""
     salidas = _conversar([
         "Represento a una empresa de 100 empleados",
+        "Ana",
         "Queremos capacitar al equipo",
         "Tenemos 8.000 dolares de presupuesto",
         "Nos gustaria implementarlo este mes",
     ])
-    assert all(r["badge_tipo"] == "B2B" for r in salidas), "B2B mal clasificado"
+    # Una vez que hay señales B2B, el badge es B2B (el saludo inicial puede ser None).
+    badges = [r["badge_tipo"] for r in salidas if r["badge_tipo"]]
+    assert badges and all(b == "B2B" for b in badges), "B2B mal clasificado"
     assert all(r["accion"] != "proponer_quiz" for r in salidas), "B2B no lleva quiz"
     assert salidas[-1]["accion"] == "pedir_email"
 
     dichos = [r["mensaje"] for r in salidas]
-    assert sum(1 for m in dichos if m in _textos_yaml("b2b")) >= 3
+    assert sum(1 for m in dichos if any(p in m for p in _textos_yaml("b2b"))) >= 3
 
 
 def test_nunca_se_queda_en_bucle_si_no_entiende_la_respuesta():
-    salidas = _conversar(["Quiero invertir", "mmm no se", "ni idea", "paso", "bueno"])
+    salidas = _conversar(
+        ["Kenny", "Quiero invertir", "mmm no se", "ni idea", "paso", "bueno"]
+    )
     dichos = [r["mensaje"] for r in salidas]
     assert len(dichos) == len(set(dichos)), "se quedó repitiendo el mismo mensaje"
