@@ -36,17 +36,17 @@ function Kpi({
   } as const;
 
   return (
-    <div className="flex flex-col rounded-xl border border-border bg-card p-3 shadow-sm">
+    <div className="flex flex-col rounded-xl border border-border bg-card p-2 sm:p-3 shadow-sm">
       <span
-        className={cn('mb-2 flex size-7 items-center justify-center rounded-lg', tonos[tono])}
+        className={cn('mb-1 sm:mb-2 flex size-6 sm:size-7 items-center justify-center rounded-lg', tonos[tono])}
         aria-hidden="true"
       >
-        <Icono className="size-3.5" />
+        <Icono className="size-3 sm:size-3.5" />
       </span>
-      <span className="text-xl font-bold leading-none tabular-nums text-foreground">
+      <span className="text-lg sm:text-xl font-bold leading-none tabular-nums text-foreground">
         {valor}
       </span>
-      <span className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <span className="mt-1 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         {etiqueta}
         {nota && <span className="ml-1 font-normal normal-case opacity-70">({nota})</span>}
       </span>
@@ -69,12 +69,12 @@ export default function MiniDashboard({ leads }: { leads: Lead[] }) {
   const tasaAprobacion = 92;
 
   return (
-    <div className="shrink-0 border-b border-border bg-card p-3.5">
+    <div className="shrink-0 border-b border-border bg-card p-2 sm:p-3.5">
       <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
         Rendimiento de campaña
       </h2>
 
-      <div className="mt-2.5 grid grid-cols-3 gap-2.5">
+      <div className="mt-2 sm:mt-2.5 grid grid-cols-3 gap-1.5 sm:gap-2.5">
         <Kpi icono={Users} valor={total} etiqueta="Leads" tono="base" />
         <Kpi icono={Flame} valor={`${pctCalientes}%`} etiqueta="Calientes" tono="caliente" />
         <Kpi icono={Target} valor={`${tasaAprobacion}%`} etiqueta="Aprobación" tono="ok" />

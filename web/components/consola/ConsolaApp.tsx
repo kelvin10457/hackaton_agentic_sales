@@ -280,9 +280,29 @@ export function ConsolaApp({ onClose }: { onClose?: () => void }) {
 
                 <div className="flex min-w-0 flex-1 flex-col">
                     {/* Cabecera: identidad del ejecutivo */}
-                    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4">
-                        <div className="flex items-center gap-3">
-                            <LogoMark className="md:hidden" />
+                    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-2 sm:px-4">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="md:hidden flex items-center gap-1">
+                                {onClose ? (
+                                    <button
+                                        type="button"
+                                        onClick={onClose}
+                                        aria-label="Volver al inicio"
+                                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    >
+                                        <ArrowLeft className="size-5" />
+                                    </button>
+                                ) : (
+                                    <Link
+                                        href="/"
+                                        aria-label="Ir al inicio"
+                                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    >
+                                        <ArrowLeft className="size-5" />
+                                    </Link>
+                                )}
+                            </div>
+                            <LogoMark className="hidden sm:block md:hidden" />
                             <div>
                                 <h1 className="text-sm font-bold leading-tight text-foreground">
                                     Consola del Ejecutivo
@@ -292,9 +312,9 @@ export function ConsolaApp({ onClose }: { onClose?: () => void }) {
                                 </p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2.5">
-                            <span className="hidden rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:inline-block">
-                                Conectado exitosamente
+                        <div className="flex items-center gap-2 sm:gap-2.5">
+                            <span className="hidden rounded-full border border-border bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground md:inline-block">
+                                Conectado
                             </span>
 
                             {/* Interruptor vista de día / vista nocturna */}
@@ -334,7 +354,7 @@ export function ConsolaApp({ onClose }: { onClose?: () => void }) {
                                 />
                             </button>
 
-                            <div className="flex items-center gap-2.5 rounded-full border border-border py-1 pl-1 pr-3">
+                            <div className="hidden sm:flex items-center gap-2.5 rounded-full border border-border py-1 pl-1 pr-3">
                                 <span
                                     aria-hidden="true"
                                     className="flex size-7 items-center justify-center rounded-full bg-futuro-base text-[11px] font-bold text-white"
@@ -348,6 +368,20 @@ export function ConsolaApp({ onClose }: { onClose?: () => void }) {
                                     </p>
                                 </div>
                             </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    clearToken();
+                                    setAutenticado(false);
+                                    setLeads([]);
+                                    setSelectedLead(null);
+                                }}
+                                aria-label="Cerrar sesión"
+                                title="Cerrar sesión"
+                                className="md:hidden flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                            >
+                                <LogOut className="size-4" aria-hidden="true" />
+                            </button>
                         </div>
                     </header>
 
@@ -390,7 +424,13 @@ export function ConsolaApp({ onClose }: { onClose?: () => void }) {
                             {estaCargando ? (
                                 <DetailPanelSkeleton />
                             ) : (
-                                <LeadDetailPanel lead={selectedLead} />
+                                <LeadDetailPanel
+                                    lead={selectedLead}
+                                    onDelete={() => {
+                                        setSelectedLead(null);
+                                        cargarLeads();
+                                    }}
+                                />
                             )}
                         </section>
                     </main>
@@ -413,7 +453,13 @@ export function ConsolaApp({ onClose }: { onClose?: () => void }) {
                             </span>
                         </div>
                         <div className="min-h-0 flex-1">
-                            <LeadDetailPanel lead={selectedLead} />
+                            <LeadDetailPanel
+                                lead={selectedLead}
+                                onDelete={() => {
+                                    setSelectedLead(null);
+                                    cargarLeads();
+                                }}
+                            />
                         </div>
                     </div>
                 )}

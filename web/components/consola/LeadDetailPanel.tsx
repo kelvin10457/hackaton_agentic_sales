@@ -10,7 +10,10 @@ import {
   RotateCcw,
   ShieldCheck,
   ShieldX,
+  Trash2,
 } from 'lucide-react';
+
+import { eliminarLead } from '@/lib/consola-api';
 
 import ScorePanel from './ScorePanel';
 import BriefPanel from './BriefPanel';
@@ -95,12 +98,37 @@ function ResolucionCard({ accion, lead }: { accion: AccionRealizada; lead: Lead 
   );
 }
 
-export default function LeadDetailPanel({ lead }: { lead: Lead | null }) {
+export default function LeadDetailPanel({
+  lead,
+  onDelete,
+}: {
+  lead: Lead | null;
+  onDelete?: () => void;
+}) {
   const [accionRealizada, setAccionRealizada] = useState<AccionRealizada | null>(null);
+  const [eliminando, setEliminando] = useState(false);
 
   useEffect(() => {
     setAccionRealizada(null);
   }, [lead?.id]);
+
+  const handleEliminar = async () => {
+    if (!lead) return;
+    if (
+      window.confirm(
+        `¿Estás seguro de que deseas eliminar permanentemente a ${lead.identidad.nombre}? Esta acción no se puede deshacer y limpiará todo su historial.`
+      )
+    ) {
+      setEliminando(true);
+      try {
+        await eliminarLead(lead.id);
+        if (onDelete) onDelete();
+      } catch (err) {
+        alert('Error al eliminar el lead');
+        setEliminando(false);
+      }
+    }
+  };
 
   // Regla 6: estado vacío cuidado si no hay lead seleccionado
   if (!lead) {
@@ -179,22 +207,35 @@ export default function LeadDetailPanel({ lead }: { lead: Lead | null }) {
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-col items-end gap-1.5">
-            <Badge variant="secondary">{etiqueta(lead.etapa_embudo)}</Badge>
-            <div className="flex gap-1.5">
-              <ChipConsentimiento
-                otorgado={lead.consentimiento?.tratamiento_datos?.otorgado ?? false}
-                texto="Datos"
-                timestamp={lead.consentimiento?.tratamiento_datos?.timestamp}
-              />
-              <ChipConsentimiento
-                otorgado={
-                  lead.consentimiento?.comunicaciones_comerciales?.otorgado ?? false
-                }
-                texto="Comercial"
-                timestamp={lead.consentimiento?.comunicaciones_comerciales?.timestamp}
-              />
+          <div className="mt-2 flex w-full shrink-0 items-center justify-between gap-4 sm:mt-0 sm:w-auto sm:justify-end">
+            <div className="flex flex-col items-start gap-1.5 sm:items-end">
+              <Badge variant="secondary">{etiqueta(lead.etapa_embudo)}</Badge>
+              <div className="flex gap-1.5">
+                <ChipConsentimiento
+                  otorgado={lead.consentimiento?.tratamiento_datos?.otorgado ?? false}
+                  texto="Datos"
+                  timestamp={lead.consentimiento?.tratamiento_datos?.timestamp}
+                />
+                <ChipConsentimiento
+                  otorgado={
+                    lead.consentimiento?.comunicaciones_comerciales?.otorgado ?? false
+                  }
+                  texto="Comercial"
+                  timestamp={lead.consentimiento?.comunicaciones_comerciales?.timestamp}
+                />
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={handleEliminar}
+              disabled={eliminando}
+              className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 hover:text-red-700 disabled:opacity-50"
+              title="Eliminar permanentemente"
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+              Eliminar
+            </button>
           </div>
         </div>
       </div>

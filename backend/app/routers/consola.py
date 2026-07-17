@@ -77,6 +77,31 @@ def obtener_lead_v2(
     return lead
 
 
+@router.delete("/leads/{lead_id}", status_code=204)
+def eliminar_lead_v2(
+    lead_id: int,
+    ejecutivo: User = Depends(requiere_rol_ejecutivo),
+    db: Session = Depends(get_db),
+):
+    """Elimina un LeadV2 y limpia manualmente sus registros huérfanos."""
+    lead = db.query(LeadV2Model).filter(LeadV2Model.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead no encontrado.")
+
+    # Limpiar tablas dependientes sin FK formal / cascade
+    from app.models import SenalesLead, ScoreLead, AccionPropuesta
+    db.query(SenalesLead).filter(SenalesLead.lead_id == lead_id).delete()
+    db.query(ScoreLead).filter(ScoreLead.lead_id == lead_id).delete()
+    db.query(AccionPropuesta).filter(AccionPropuesta.lead_id == lead_id).delete()
+    db.query(Conversation).filter(Conversation.lead_id == lead_id).delete()
+
+    # Oportunidad y Consentimiento tienen cascade, pero los borramos explícitamente si queremos
+    db.delete(lead)
+    db.commit()
+    return None
+
+
+
 @router.post(
     "/identidad/verificar",
     response_model=VerificacionIdentidadResponse,
