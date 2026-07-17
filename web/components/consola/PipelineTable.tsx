@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   createColumnHelper,
   flexRender,
@@ -9,9 +9,10 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { ArrowUpDown, Search, SearchX } from 'lucide-react';
+import { ArrowUpDown, ChevronDown, Filter, Search, SearchX, X } from 'lucide-react';
 
 import { Input } from '@/components/shared/input';
+import { Checkbox } from '@/components/shared/checkbox';
 import { etiqueta } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Banda, Lead } from '@/lib/types';
@@ -42,6 +43,20 @@ const FILTROS: { valor: FiltroBanda; texto: string }[] = [
   { valor: 'frio', texto: 'Frío' },
 ];
 
+// Atributos del filtro avanzado (icono junto a la búsqueda).
+// Las 8 etapas cerradas de la Biblia (schemas.EtapaEmbudo) y los 2 tipos.
+const ETAPAS: string[] = [
+  'nuevo',
+  'en_calificacion',
+  'calificado',
+  'educando',
+  'listo_para_asesor',
+  'derivado',
+  'nutricion',
+  'descartado',
+];
+const TIPOS: string[] = ['B2C', 'B2B'];
+
 const columnHelper = createColumnHelper<Lead>();
 
 export default function PipelineTable({
@@ -52,6 +67,38 @@ export default function PipelineTable({
   const [banda, setBanda] = useState<FiltroBanda>('todas');
   const [busqueda, setBusqueda] = useState('');
   const [sorting, setSorting] = useState<SortingState>([{ id: 'score', desc: true }]);
+
+  // Filtro avanzado por atributos (etapa / tipo).
+  const [filtroAbierto, setFiltroAbierto] = useState(false);
+  const [secEtapa, setSecEtapa] = useState(true);
+  const [secTipo, setSecTipo] = useState(false);
+  const [etapasSel, setEtapasSel] = useState<Set<string>>(new Set());
+  const [tiposSel, setTiposSel] = useState<Set<string>>(new Set());
+  const atributosActivos = etapasSel.size + tiposSel.size;
+
+  const toggleEn = (setter: React.Dispatch<React.SetStateAction<Set<string>>>) => (v: string) =>
+    setter((prev) => {
+      const n = new Set(prev);
+      if (n.has(v)) n.delete(v);
+      else n.add(v);
+      return n;
+    });
+  const toggleEtapa = toggleEn(setEtapasSel);
+  const toggleTipo = toggleEn(setTiposSel);
+  const limpiarAtributos = () => {
+    setEtapasSel(new Set());
+    setTiposSel(new Set());
+  };
+
+  // Cerrar el popover con Escape.
+  useEffect(() => {
+    if (!filtroAbierto) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFiltroAbierto(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [filtroAbierto]);
 
   // "critico" cuenta como caliente: son la misma acción para Carlos (llamar hoy).
   const esBanda = (l: Lead, b: Exclude<FiltroBanda, 'todas'>) =>
@@ -64,10 +111,12 @@ export default function PipelineTable({
     return leads.filter(
       (l) =>
         (banda === 'todas' || esBanda(l, banda)) &&
-        (q === '' || l.identidad.nombre.toLowerCase().includes(q))
+        (q === '' || l.identidad.nombre.toLowerCase().includes(q)) &&
+        (etapasSel.size === 0 || etapasSel.has(l.etapa_embudo)) &&
+        (tiposSel.size === 0 || tiposSel.has(l.tipo))
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leads, banda, busqueda]);
+  }, [leads, banda, busqueda, etapasSel, tiposSel]);
 
   const conteos: Record<FiltroBanda, number> = useMemo(
     () => ({
@@ -149,24 +198,180 @@ export default function PipelineTable({
       {/* Controles: título, búsqueda y filtro por banda */}
       <div className="flex shrink-0 flex-col gap-2.5 border-b border-border p-3.5">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 text-sm font-bold text-futuro-base">
+          <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
             Pipeline de leads
             <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
               {filtrados.length}
             </span>
           </h2>
-          <div className="relative w-36 sm:w-44">
-            <Search
-              className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar…"
-              aria-label="Buscar prospecto por nombre"
-              className="h-8 pl-8 text-[13px]"
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative w-32 sm:w-40">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <Input
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar…"
+                aria-label="Buscar prospecto por nombre"
+                className="h-8 pl-8 text-[13px]"
+              />
+            </div>
+
+            {/* Filtro avanzado por atributos (etapa / tipo) */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setFiltroAbierto((v) => !v)}
+                aria-label="Filtrar por etapa o tipo"
+                aria-expanded={filtroAbierto}
+                title="Filtrar por etapa o tipo"
+                className={cn(
+                  'relative flex size-8 shrink-0 items-center justify-center rounded-lg border transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                  filtroAbierto || atributosActivos > 0
+                    ? 'border-futuro-base bg-futuro-base text-white'
+                    : 'border-border bg-card text-muted-foreground hover:border-futuro-base/40 hover:text-foreground'
+                )}
+              >
+                <Filter className="size-4" aria-hidden="true" />
+                {atributosActivos > 0 && (
+                  <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-futuro-accent text-[9px] font-bold tabular-nums text-white ring-2 ring-card">
+                    {atributosActivos}
+                  </span>
+                )}
+              </button>
+
+              {filtroAbierto && (
+                <>
+                  {/* Cierre al hacer clic fuera */}
+                  <div
+                    className="fixed inset-0 z-20"
+                    aria-hidden="true"
+                    onClick={() => setFiltroAbierto(false)}
+                  />
+                  <div
+                    role="dialog"
+                    aria-label="Filtrar pipeline por etapa o tipo"
+                    className="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+                  >
+                    {/* Cabecera con botón de cierre */}
+                    <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Filtrar por
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setFiltroAbierto(false)}
+                        aria-label="Cerrar filtros"
+                        className="flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <X className="size-4" aria-hidden="true" />
+                      </button>
+                    </div>
+
+                    {/* Atributo: Etapa */}
+                    <div className="border-b border-border">
+                      <button
+                        type="button"
+                        onClick={() => setSecEtapa((v) => !v)}
+                        aria-expanded={secEtapa}
+                        className="flex w-full items-center justify-between px-3 py-2 text-left text-[13px] font-semibold text-foreground transition-colors duration-150 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          Etapa
+                          {etapasSel.size > 0 && (
+                            <span className="rounded-full bg-futuro-accent/15 px-1.5 text-[10px] font-bold tabular-nums text-futuro-corp dark:text-futuro-sky">
+                              {etapasSel.size}
+                            </span>
+                          )}
+                        </span>
+                        <ChevronDown
+                          className={cn(
+                            'size-4 text-muted-foreground transition-transform duration-150',
+                            secEtapa && 'rotate-180'
+                          )}
+                          aria-hidden="true"
+                        />
+                      </button>
+                      {secEtapa && (
+                        <div className="max-h-52 space-y-0.5 overflow-y-auto px-2 pb-2">
+                          {ETAPAS.map((v) => (
+                            <label
+                              key={v}
+                              className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-foreground transition-colors duration-150 hover:bg-accent/60"
+                            >
+                              <Checkbox
+                                checked={etapasSel.has(v)}
+                                onCheckedChange={() => toggleEtapa(v)}
+                              />
+                              {etiqueta(v)}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Atributo: Tipo */}
+                    <div className="border-b border-border">
+                      <button
+                        type="button"
+                        onClick={() => setSecTipo((v) => !v)}
+                        aria-expanded={secTipo}
+                        className="flex w-full items-center justify-between px-3 py-2 text-left text-[13px] font-semibold text-foreground transition-colors duration-150 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          Tipo
+                          {tiposSel.size > 0 && (
+                            <span className="rounded-full bg-futuro-accent/15 px-1.5 text-[10px] font-bold tabular-nums text-futuro-corp dark:text-futuro-sky">
+                              {tiposSel.size}
+                            </span>
+                          )}
+                        </span>
+                        <ChevronDown
+                          className={cn(
+                            'size-4 text-muted-foreground transition-transform duration-150',
+                            secTipo && 'rotate-180'
+                          )}
+                          aria-hidden="true"
+                        />
+                      </button>
+                      {secTipo && (
+                        <div className="space-y-0.5 px-2 pb-2">
+                          {TIPOS.map((v) => (
+                            <label
+                              key={v}
+                              className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-foreground transition-colors duration-150 hover:bg-accent/60"
+                            >
+                              <Checkbox
+                                checked={tiposSel.has(v)}
+                                onCheckedChange={() => toggleTipo(v)}
+                              />
+                              {v}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Pie: resultados + limpiar */}
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span className="text-[11px] tabular-nums text-muted-foreground">
+                        {filtrados.length} resultado{filtrados.length === 1 ? '' : 's'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={limpiarAtributos}
+                        disabled={atributosActivos === 0}
+                        className="text-[11px] font-semibold text-futuro-corp dark:text-futuro-sky underline-offset-2 transition-opacity hover:underline disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        Limpiar
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -295,8 +500,9 @@ export default function PipelineTable({
               onClick={() => {
                 setBanda('todas');
                 setBusqueda('');
+                limpiarAtributos();
               }}
-              className="mt-1 text-xs font-semibold text-futuro-corp underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-1 text-xs font-semibold text-futuro-corp dark:text-futuro-sky underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Limpiar filtros
             </button>

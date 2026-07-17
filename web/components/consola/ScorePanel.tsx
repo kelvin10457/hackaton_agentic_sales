@@ -86,7 +86,7 @@ export default function ScorePanel({ score }: { score: ScoreLead }) {
             Score del lead
           </h3>
           <div className="mt-1.5 flex items-center gap-2.5">
-            <span className="text-4xl font-bold leading-none tabular-nums text-futuro-base">
+            <span className="text-4xl font-bold leading-none tabular-nums text-foreground">
               {score?.total ?? 0}
             </span>
             <span

@@ -45,12 +45,18 @@ export function formatRelativo(iso: string): string {
 
 /** Etiquetas legibles para los enums del backend */
 const ETIQUETAS: Record<string, string> = {
-  // etapa_embudo
-  nutricion: "Nutrición",
-  calificacion: "Calificación",
-  educacion: "Educación",
+  // etapa_embudo (las 8 etapas cerradas de la Biblia)
+  nuevo: "Nuevo",
+  en_calificacion: "En calificación",
+  calificado: "Calificado",
+  educando: "Educando",
   listo_para_asesor: "Listo para asesor",
   derivado: "Derivado",
+  nutricion: "Nutrición",
+  descartado: "Descartado",
+  // (compat) etapas heredadas
+  calificacion: "Calificación",
+  educacion: "Educación",
   // ruta_sugerida
   asesoria_inversion: "Asesoría de inversión",
   programa_inicial: "Programa inicial",

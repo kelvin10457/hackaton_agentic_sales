@@ -30,6 +30,30 @@
     --radius: 0.625rem;
   }
 
+  /* Vista nocturna — se activa con la clase .dark (confinada al CRM).
+     Mismos tokens, valores oscuros calibrados sobre el navy de marca. */
+  .dark {
+    --background: 222 44% 11%;
+    --foreground: 210 20% 92%;
+    --card: 222 38% 15%;
+    --card-foreground: 210 20% 92%;
+    --popover: 222 38% 15%;
+    --popover-foreground: 210 20% 92%;
+    --primary: 208 100% 60%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 30% 22%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 217 30% 20%;
+    --muted-foreground: 215 18% 62%;
+    --accent: 217 32% 24%;
+    --accent-foreground: 210 40% 92%;
+    --destructive: 0 63% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 20% 26%;
+    --input: 217 20% 30%;
+    --ring: 208 100% 58%;
+  }
+
   * {
     @apply border-border;
   }

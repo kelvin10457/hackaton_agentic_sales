@@ -56,12 +56,12 @@ export default function BriefPanel({ lead }: { lead: Lead }) {
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Campo icono={Shield} titulo="Perfil de riesgo">
-            <p className="text-sm font-bold uppercase tracking-wide text-futuro-corp">
+            <p className="text-sm font-bold uppercase tracking-wide text-futuro-corp dark:text-futuro-sky">
               {etiqueta(lead.senales?.perfil_riesgo as string) }
             </p>
           </Campo>
           <Campo icono={Route} titulo="Ruta sugerida">
-            <p className="text-sm font-semibold text-futuro-corp">
+            <p className="text-sm font-semibold text-futuro-corp dark:text-futuro-sky">
               {etiqueta(lead.ruta_sugerida)}
             </p>
           </Campo>

@@ -257,7 +257,7 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
           />
         </div>
         {editado && !camposDeshabilitados && (
-          <p className="flex items-center gap-1.5 text-[11px] font-medium text-futuro-corp">
+          <p className="flex items-center gap-1.5 text-[11px] font-medium text-futuro-corp dark:text-futuro-sky">
             <Edit3 className="size-3" aria-hidden="true" />
             Borrador modificado — quedará registrado como “editado por humano”.
           </p>

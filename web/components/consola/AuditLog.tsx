@@ -281,7 +281,7 @@ export default function AuditLog({
                 </p>
 
                 {log.metadato && (
-                  <p className="mt-1.5 inline-block rounded border border-border bg-muted/60 px-1.5 py-0.5 font-mono text-[11px] text-futuro-corp">
+                  <p className="mt-1.5 inline-block rounded border border-border bg-muted/60 px-1.5 py-0.5 font-mono text-[11px] text-futuro-corp dark:text-futuro-sky">
                     {log.metadato}
                   </p>
                 )}
