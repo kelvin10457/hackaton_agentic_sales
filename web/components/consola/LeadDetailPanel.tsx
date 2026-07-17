@@ -124,6 +124,7 @@ export default function LeadDetailPanel({
         await eliminarLead(lead.id);
         if (onDelete) onDelete();
       } catch (err) {
+        console.error('Fallo al eliminar:', err);
         alert('Error al eliminar el lead');
         setEliminando(false);
       }
