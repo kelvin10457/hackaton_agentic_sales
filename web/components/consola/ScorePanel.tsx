@@ -79,14 +79,14 @@ export default function ScorePanel({ score }: { score: ScoreLead }) {
   }, [score]);
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+    <section className="borde-degradado rounded-xl p-5 shadow-sm">
       <div className="mb-5 flex items-end justify-between gap-3">
         <div>
           <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
             Score del lead
           </h3>
           <div className="mt-1.5 flex items-center gap-2.5">
-            <span className="text-4xl font-bold leading-none tabular-nums text-futuro-base">
+            <span className="text-4xl font-bold leading-none tabular-nums text-foreground">
               {score?.total ?? 0}
             </span>
             <span

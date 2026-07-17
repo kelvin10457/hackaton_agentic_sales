@@ -30,6 +30,30 @@
     --radius: 0.625rem;
   }
 
+  /* Vista nocturna — se activa con la clase .dark (confinada al CRM).
+     Mismos tokens, valores oscuros calibrados sobre el navy de marca. */
+  .dark {
+    --background: 222 44% 11%;
+    --foreground: 210 20% 92%;
+    --card: 222 38% 15%;
+    --card-foreground: 210 20% 92%;
+    --popover: 222 38% 15%;
+    --popover-foreground: 210 20% 92%;
+    --primary: 208 100% 60%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 30% 22%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 217 30% 20%;
+    --muted-foreground: 215 18% 62%;
+    --accent: 217 32% 24%;
+    --accent-foreground: 210 40% 92%;
+    --destructive: 0 63% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 20% 26%;
+    --input: 217 20% 30%;
+    --ring: 208 100% 58%;
+  }
+
   * {
     @apply border-border;
   }
@@ -45,6 +69,60 @@
 
   ::selection {
     background-color: rgba(0, 132, 255, 0.2);
+  }
+}
+
+@layer components {
+  /* Borde degradado de marca (magenta → celeste) para los paneles del lead.
+     El relleno usa hsl(var(--card)) para adaptarse a día/noche. */
+  .borde-degradado {
+    border: 2px solid transparent;
+    background:
+      linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box,
+      linear-gradient(135deg, #d900c7, #4ba3e3) border-box;
+  }
+
+  /* Variante más ligera del borde degradado (Brief y Bitácora). */
+  .borde-degradado-suave {
+    border: 2px solid transparent;
+    background:
+      linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box,
+      linear-gradient(135deg, #eaa8e4, #a9d2f1) border-box;
+  }
+
+  /* Caja "Razonamiento del agente": en día, gris claro (se distingue del
+     contenedor lavanda) con texto legible; en noche, un morado más claro
+     que el contenedor para diferenciarla. */
+  .caja-razonamiento {
+    background-color: #ececf1;
+    border-color: rgba(90, 23, 245, 0.14);
+  }
+  .dark .caja-razonamiento {
+    background-color: #3a2f60;
+    border-color: rgba(160, 130, 245, 0.32);
+  }
+
+  /* Contenedor de "Acción propuesta por el agente": fondo lavanda + borde
+     morado (más oscuro y distinto al degradado). En noche, fondo oscuro
+     para que el texto claro siga siendo legible. */
+  .contenedor-accion {
+    background-color: #e3d5fb;
+    border: 2px solid #6518f8;
+  }
+  .dark .contenedor-accion {
+    background-color: #241a3d;
+  }
+
+  /* Hover magenta de las filas del pipeline. En día, el nombre pasa a blanco;
+     en noche el texto no cambia de color (solo el fondo magenta). */
+  .fila-lead:not(.fila-sel):hover {
+    background-color: #d500cf;
+  }
+  .fila-lead:not(.fila-sel):hover .nombre-lead {
+    color: #fff;
+  }
+  .dark .fila-lead:not(.fila-sel):hover .nombre-lead {
+    color: inherit;
   }
 }
 

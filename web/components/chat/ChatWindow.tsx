@@ -67,6 +67,7 @@ export function ChatWindow() {
       }
     } catch {
       setErrorInicial(true);
+      localStorage.removeItem("token_sesion");
     } finally {
       setCargandoInicial(false);
     }

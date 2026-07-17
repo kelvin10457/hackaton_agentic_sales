@@ -141,7 +141,7 @@ export default function LeadDetailPanel({ lead }: { lead: Lead | null }) {
               {iniciales}
             </span>
             <div className="min-w-0">
-              <h2 className="flex flex-wrap items-center gap-2 text-lg font-bold leading-tight text-futuro-base sm:text-xl">
+              <h2 className="flex flex-wrap items-center gap-2 text-lg font-bold leading-tight text-foreground sm:text-xl">
                 {lead.identidad.nombre}
                 <Badge variant="outline" className="uppercase tracking-wider">
                   {lead.tipo}

@@ -30,7 +30,7 @@ function Kpi({
   nota?: string;
 }) {
   const tonos = {
-    base: 'bg-accent text-futuro-corp',
+    base: 'bg-accent text-futuro-corp dark:text-futuro-sky',
     caliente: 'bg-red-50 text-banda-caliente',
     ok: 'bg-emerald-50 text-emerald-600',
   } as const;

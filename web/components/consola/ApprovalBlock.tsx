@@ -9,11 +9,14 @@ import {
   AlertTriangle,
   BookOpen,
   Bot,
+  CheckCircle2,
   Edit3,
+  Loader2,
   Lock,
   Mail,
   MessageSquare,
   Phone,
+  RotateCcw,
   ShieldAlert,
   ShieldCheck,
   X,
@@ -66,6 +69,7 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
   const [cuerpo, setCuerpo] = useState(accion.borrador.cuerpo);
   const [motivoRechazo, setMotivoRechazo] = useState('');
   const [mostrarRechazo, setMostrarRechazo] = useState(false);
+  const [enviando, setEnviando] = useState(false);
   const { toast } = useToast();
 
   // Resincroniza el borrador al cambiar de lead en el master–detail
@@ -74,6 +78,7 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
     setCuerpo(accion.borrador.cuerpo);
     setMostrarRechazo(false);
     setMotivoRechazo('');
+    setEnviando(false);
   }, [accion]);
 
   // Verificación estricta: sin dato explícito, se asume NO consentido
@@ -81,12 +86,21 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
     lead.consentimiento?.comunicaciones_comerciales?.otorgado ?? false;
   const bloqueado = !consentimientoComercial;
   const esObsoleta = accion.estado === 'obsoleta';
+  // Una acción que ya pasó por manos humanas NO se vuelve a decidir: se muestra
+  // su resolución. Sin esto, aprobar dos veces devolvía 409 en la consola.
+  const yaResuelta =
+    accion.estado === 'aprobada' ||
+    accion.estado === 'editada_y_aprobada' ||
+    accion.estado === 'rechazada' ||
+    accion.estado === 'ejecutada';
   const editado =
     asunto !== accion.borrador.asunto || cuerpo !== accion.borrador.cuerpo;
-  const camposDeshabilitados = bloqueado || esObsoleta || accion.estado !== 'pendiente';
+  const camposDeshabilitados = bloqueado || esObsoleta || yaResuelta;
 
   async function aprobar() {
+    if (enviando) return;              // guarda anti doble-clic
     const tipo = editado ? 'editar_aprobar' : 'aprobar';
+    setEnviando(true);
     try {
       // Se envía SIEMPRE el borrador en pantalla. El backend compara con el que
       // redactó el agente: si cambió, queda como 'editada_y_aprobada' y marca
@@ -101,6 +115,7 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
           : 'Registrado en la bitácora del backend con tu autoría.',
       });
     } catch (err) {
+      setEnviando(false);
       toast({
         tipo: 'error',
         titulo: 'Error al aprobar',
@@ -110,6 +125,8 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
   }
 
   async function rechazar() {
+    if (enviando) return;
+    setEnviando(true);
     try {
       await apiRechazar(Number(accion.id), motivoRechazo.trim());
       onActionComplete?.('rechazar', { motivo: motivoRechazo.trim() });
@@ -119,6 +136,7 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
         descripcion: 'El lead vuelve a nutrición — no se descarta.',
       });
     } catch (err) {
+      setEnviando(false);
       toast({
         tipo: 'error',
         titulo: 'Error al rechazar',
@@ -138,12 +156,22 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
   const idBloqueo = `bloqueo-${lead.id}`;
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+    <section className="contenedor-accion rounded-xl p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
           Acción propuesta por el agente
         </h3>
-        <Badge variant={esObsoleta ? 'warning' : 'accent'}>
+        <Badge
+          variant={
+            accion.estado === 'rechazada'
+              ? 'warning'
+              : yaResuelta
+                ? 'success'
+                : esObsoleta
+                  ? 'warning'
+                  : 'accent'
+          }
+        >
           {etiqueta(accion.estado)}
         </Badge>
       </div>
@@ -176,8 +204,8 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
       )}
 
       {/* Razonamiento del agente + fuentes (violeta = voz de la IA) */}
-      <div className="mt-3 rounded-lg border border-futuro-ia/15 bg-futuro-ia/5 p-3.5">
-        <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-futuro-ia">
+      <div className="caja-razonamiento mt-3 rounded-lg border p-3.5">
+        <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-futuro-ia dark:text-violet-300">
           <Bot className="size-3.5" aria-hidden="true" />
           Razonamiento del agente
         </p>
@@ -229,14 +257,46 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
           />
         </div>
         {editado && !camposDeshabilitados && (
-          <p className="flex items-center gap-1.5 text-[11px] font-medium text-futuro-corp">
+          <p className="flex items-center gap-1.5 text-[11px] font-medium text-futuro-corp dark:text-futuro-sky">
             <Edit3 className="size-3" aria-hidden="true" />
             Borrador modificado — quedará registrado como “editado por humano”.
           </p>
         )}
       </div>
 
-      {bloqueado ? (
+      {yaResuelta ? (
+        /* ---- Acción ya decidida: se muestra la resolución, sin re-decidir ---- */
+        accion.estado === 'rechazada' ? (
+          <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <RotateCcw className="mt-0.5 size-5 shrink-0 text-amber-600" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-bold text-amber-900">Propuesta rechazada</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-amber-800">
+                El lead volvió a nutrición — no se descarta.
+                {accion.motivo_rechazo ? ` Motivo: “${accion.motivo_rechazo}”.` : ''} La
+                decisión quedó registrada en la bitácora.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-bold text-emerald-900">
+                {accion.editado_por_humano
+                  ? 'Borrador editado y aprobado'
+                  : 'Comunicación aprobada'}
+              </p>
+              <p className="mt-1 text-[13px] leading-relaxed text-emerald-800">
+                Envío simulado{accion.destinatario?.email ? ` a ${accion.destinatario.email}` : ''}.
+                {accion.revisado_por ? ` Aprobada por ${accion.revisado_por}.` : ''} La
+                decisión quedó sellada en la bitácora
+                {accion.editado_por_humano ? ' con la marca de edición humana.' : '.'}
+              </p>
+            </div>
+          </div>
+        )
+      ) : bloqueado ? (
         /* ---- PLANO ESTRELLA: consentimiento por finalidad ---- */
         <div className="mt-4 space-y-3">
           <div
@@ -329,31 +389,31 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
               <Button
                 variant="ghost"
                 onClick={() => setMostrarRechazo(true)}
-                disabled={esObsoleta}
+                disabled={esObsoleta || enviando}
                 className="text-destructive hover:bg-destructive/10 hover:text-destructive"
               >
                 <X aria-hidden="true" /> Rechazar
               </Button>
-              <Button
-                variant="outline"
-                onClick={aprobar}
-                disabled={esObsoleta || !editado}
-                title={
-                  !editado ? 'Modifica el borrador para habilitar esta opción' : undefined
-                }
-              >
-                <Edit3 aria-hidden="true" /> Editar y aprobar
-              </Button>
+              {/* Un solo botón primario que se adapta: si el borrador cambió,
+                  es "Editar y aprobar"; si no, "Aprobar envío". Se acabó la
+                  confusión de dos botones que se activaban/desactivaban. */}
               <Button
                 onClick={aprobar}
-                disabled={esObsoleta || editado}
-                title={
-                  editado
-                    ? 'El borrador tiene cambios — usa “Editar y aprobar”'
-                    : undefined
-                }
+                disabled={esObsoleta || enviando}
+                className="min-w-[9.5rem] bg-[#6518f8] text-white hover:bg-[#d500cf]"
               >
-                <ShieldCheck aria-hidden="true" /> Aprobar envío
+                {enviando ? (
+                  <Loader2 className="animate-spin" aria-hidden="true" />
+                ) : editado ? (
+                  <Edit3 aria-hidden="true" />
+                ) : (
+                  <ShieldCheck aria-hidden="true" />
+                )}
+                {enviando
+                  ? 'Enviando…'
+                  : editado
+                    ? 'Editar y aprobar'
+                    : 'Aprobar envío'}
               </Button>
             </div>
           )}
