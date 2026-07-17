@@ -72,6 +72,18 @@ export function ChatWindow({ onClose }: { onClose?: () => void }) {
       if (conv.email_capturado) {
         setEmailEnviado(true);
         setSolicitudCorreoFinalizada(true);
+      } else {
+        // Escanea el historial: si el usuario ya había escrito un correo en
+        // turnos anteriores pero el registro no se completó, lo recuperamos al
+        // estado local para poder retomar directo en el consentimiento.
+        for (const m of conv.historial ?? []) {
+          if (m.rol !== "usuario") continue;
+          const e = detectarEmail(m.texto);
+          if (e) {
+            setEmail(e);
+            break;
+          }
+        }
       }
     } catch {
       setErrorInicial(true);
@@ -154,11 +166,19 @@ export function ChatWindow({ onClose }: { onClose?: () => void }) {
       if (respuesta.accion === "abrir_quiz" && !perfil) {
         void comenzarQuiz();
       }
-      // B2B no tiene quiz (es de perfil de riesgo personal): el agente pide el
-      // correo directamente. También ocurre en B2C si ya completó el quiz.
-      // Nunca se re-pide un correo ya entregado.
-      if (respuesta.accion === "pedir_email" && !emailEnviado && !solicitudCorreoFinalizada) {
-        setFlujo("email");
+      // Pedir correo: el agente lo solicita (embudo, B2B, o intención explícita
+      // de registro). Nunca se re-pide uno ya registrado (emailEnviado).
+      if (respuesta.accion === "pedir_email" && !emailEnviado) {
+        if (email) {
+          // Ya tenemos el correo (lo escribió antes o se recuperó del historial)
+          // → directo al consentimiento, sin volver a pedirlo.
+          abrirConsentimiento(email);
+        } else {
+          // Reabre la tarjeta AUNQUE se hubiera cerrado antes por texto libre:
+          // se limpia la bandera de cierre para no quedar bloqueada nunca más.
+          setSolicitudCorreoFinalizada(false);
+          setFlujo("email");
+        }
       }
     } catch {
       agregarMensaje(

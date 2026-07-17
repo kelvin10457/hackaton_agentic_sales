@@ -412,7 +412,7 @@ export async function fetchLeadsEnriquecidos(): Promise<Lead[]> {
 /**
  * Elimina un lead y todos sus datos relacionados del CRM de forma dura.
  */
-export async function eliminarLead(leadId: number): Promise<void> {
+export async function eliminarLead(leadId: number | string): Promise<void> {
   await apiFetch(`/api/consola/leads/${leadId}`, {
     method: 'DELETE',
   });
