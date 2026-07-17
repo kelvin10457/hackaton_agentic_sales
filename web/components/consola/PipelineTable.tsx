@@ -427,7 +427,8 @@ export default function PipelineTable({
                       }
                       className={cn(
                         'bg-card px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground',
-                        header.column.id === 'score' && 'text-right'
+                        header.column.id === 'score' && 'text-right',
+                        header.column.id === 'etapa' && 'hidden sm:table-cell'
                       )}
                     >
                       {header.column.getCanSort() ? (
@@ -476,7 +477,8 @@ export default function PipelineTable({
                       key={cell.id}
                       className={cn(
                         'whitespace-nowrap px-3 text-sm',
-                        cell.column.id === 'score' && 'text-right'
+                        cell.column.id === 'score' && 'text-right',
+                        cell.column.id === 'etapa' && 'hidden sm:table-cell'
                       )}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

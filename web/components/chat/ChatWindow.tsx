@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ClipboardList, RefreshCw, WifiOff } from "lucide-react";
+import { ClipboardList, RefreshCw, WifiOff, X } from "lucide-react";
 
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
@@ -34,7 +34,7 @@ function detectarEmail(texto: string): string | null {
   return m ? m[0].replace(/[.,;:]+$/, "") : null;
 }
 
-export function ChatWindow() {
+export function ChatWindow({ onClose }: { onClose?: () => void }) {
   const [mensajes, setMensajes] = useState<MensajeChat[]>([]);
   const [escribiendo, setEscribiendo] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -72,6 +72,18 @@ export function ChatWindow() {
       if (conv.email_capturado) {
         setEmailEnviado(true);
         setSolicitudCorreoFinalizada(true);
+      } else {
+        // Escanea el historial: si el usuario ya había escrito un correo en
+        // turnos anteriores pero el registro no se completó, lo recuperamos al
+        // estado local para poder retomar directo en el consentimiento.
+        for (const m of conv.historial ?? []) {
+          if (m.rol !== "usuario") continue;
+          const e = detectarEmail(m.texto);
+          if (e) {
+            setEmail(e);
+            break;
+          }
+        }
       }
     } catch {
       setErrorInicial(true);
@@ -154,11 +166,19 @@ export function ChatWindow() {
       if (respuesta.accion === "abrir_quiz" && !perfil) {
         void comenzarQuiz();
       }
-      // B2B no tiene quiz (es de perfil de riesgo personal): el agente pide el
-      // correo directamente. También ocurre en B2C si ya completó el quiz.
-      // Nunca se re-pide un correo ya entregado.
-      if (respuesta.accion === "pedir_email" && !emailEnviado && !solicitudCorreoFinalizada) {
-        setFlujo("email");
+      // Pedir correo: el agente lo solicita (embudo, B2B, o intención explícita
+      // de registro). Nunca se re-pide uno ya registrado (emailEnviado).
+      if (respuesta.accion === "pedir_email" && !emailEnviado) {
+        if (email) {
+          // Ya tenemos el correo (lo escribió antes o se recuperó del historial)
+          // → directo al consentimiento, sin volver a pedirlo.
+          abrirConsentimiento(email);
+        } else {
+          // Reabre la tarjeta AUNQUE se hubiera cerrado antes por texto libre:
+          // se limpia la bandera de cierre para no quedar bloqueada nunca más.
+          setSolicitudCorreoFinalizada(false);
+          setFlujo("email");
+        }
       }
     } catch {
       agregarMensaje(
@@ -252,7 +272,7 @@ export function ChatWindow() {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-card sm:rounded-2xl sm:border sm:border-border sm:shadow-xl">
       {/* Cabecera de marca */}
-      <header className="flex items-center justify-between gap-3 bg-futuro-base px-4 py-3 text-white">
+      <header className="flex shrink-0 items-center justify-between gap-3 bg-futuro-base px-4 py-3 text-white">
         <div className="flex items-center gap-3">
           <LogoMark claro />
           <div>
@@ -263,18 +283,30 @@ export function ChatWindow() {
             </p>
           </div>
         </div>
-        {badgeTipo && (
-          <Badge
-            className="animate-scale-in border border-white/25 bg-white/10 text-white"
-            title={
-              badgeTipo === "B2C"
-                ? "Conversación clasificada: persona"
-                : "Conversación clasificada: empresa"
-            }
-          >
-            {badgeTipo}
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {badgeTipo && (
+            <Badge
+              className="animate-scale-in border border-white/25 bg-white/10 text-white"
+              title={
+                badgeTipo === "B2C"
+                  ? "Conversación clasificada: persona"
+                  : "Conversación clasificada: empresa"
+              }
+            >
+              {badgeTipo}
+            </Badge>
+          )}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="ml-2 rounded-full p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-white sm:hidden"
+              aria-label="Cerrar chat"
+            >
+              <X className="size-5" />
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Cuerpo de la conversación */}

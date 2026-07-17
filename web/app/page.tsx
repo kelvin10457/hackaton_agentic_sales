@@ -23,13 +23,9 @@ export default function HomePage() {
 
   return (
     <main className="relative flex h-dvh w-screen items-center justify-center overflow-hidden bg-futuro-base">
-      {/* ── Fondo: el mockup se ajusta al viewport manteniendo su aspecto ────
-          La caja toma el máximo tamaño que cabe en pantalla sin recortar ni
-          generar scroll (ni horizontal ni vertical). Como conserva el aspecto
-          exacto de la imagen, los botones montados en % quedan siempre
-          alineados a los elementos del mockup. */}
+      {/* ── Fondo Desktop: mockup mantiene aspecto ──── */}
       <div
-        className="relative shadow-2xl"
+        className="relative hidden sm:block shadow-2xl"
         style={{
           width: `min(100vw, calc(100dvh * ${IMG_W} / ${IMG_H}))`,
           height: `min(100dvh, calc(100vw * ${IMG_H} / ${IMG_W}))`,
@@ -44,8 +40,7 @@ export default function HomePage() {
           className="select-none object-cover"
         />
 
-        {/* Botón fantasma montado sobre «Ingresar» → consola del ejecutivo.
-            Invisible en reposo; revela un aro sutil al pasar el cursor. */}
+        {/* Botón fantasma montado sobre «Ingresar» → consola del ejecutivo */}
         <button
           type="button"
           onClick={abrirCrm}
@@ -56,22 +51,43 @@ export default function HomePage() {
         />
       </div>
 
-      {/* ── Chat del agente: se monta sobre el fondo, alineado a la derecha ─── */}
+      {/* ── Fondo Móvil: ocupa toda la pantalla ──── */}
+      <div className="relative block h-dvh w-full sm:hidden">
+        <Image
+          src="/landing-futuro-mobile.png"
+          alt="Futuro — Casa de Valores · La guía paso a paso para tu futuro financiero"
+          fill
+          priority
+          sizes="100vw"
+          className="select-none object-cover object-top"
+        />
+        {/* Botón fantasma visible de ingreso en móvil (esquina superior derecha, ajustado con %) */}
+        <button
+          type="button"
+          onClick={abrirCrm}
+          aria-label="Ingresar — Consola del ejecutivo"
+          className="absolute z-10 cursor-pointer rounded-full ring-white/40 transition duration-150 active:bg-white/10 active:ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          style={{ right: "4%", top: "3%", width: "30%", height: "7%" }}
+        />
+      </div>
+
+      {/* ── Chat del agente ─── */}
       {chatAbierto && (
-        <div className="fixed inset-x-3 bottom-24 z-50 sm:inset-x-auto sm:bottom-24 sm:right-12 sm:w-[440px]">
-          <div className="animate-fade-up relative h-[min(720px,78dvh)]">
-            {/* X circular de cierre (como en el ejemplo) */}
+        <div className="fixed bottom-24 right-3 z-50 w-[calc(100vw-24px)] max-w-[400px] sm:inset-x-auto sm:bottom-24 sm:right-12 sm:w-[440px] sm:max-w-none">
+          <div className="animate-fade-up relative h-[min(600px,72dvh)] w-full sm:h-[min(720px,78dvh)]">
+            {/* X circular de cierre (solo desktop, en móvil se integra en el ChatWindow) */}
             <button
               type="button"
               onClick={() => setChatAbierto(false)}
               aria-label="Cerrar chat"
               title="Cerrar chat"
-              className="absolute -right-2 -top-2 z-10 flex size-8 items-center justify-center rounded-full border border-border bg-card text-futuro-base shadow-lg transition-transform duration-150 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-futuro-sky focus-visible:ring-offset-2"
+              className="absolute -right-2 -top-2 z-10 hidden sm:flex size-8 items-center justify-center rounded-full border border-border bg-card text-futuro-base shadow-lg transition-transform duration-150 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-futuro-sky focus-visible:ring-offset-2"
             >
               <X className="size-4" aria-hidden="true" />
             </button>
-            <div className="h-full overflow-hidden rounded-2xl shadow-2xl ring-1 ring-black/10">
-              <ChatWindow />
+            <div className="h-full w-full overflow-hidden shadow-2xl rounded-2xl ring-1 ring-black/10">
+              {/* Le pasamos onClose para que en móvil el botón de cerrar esté dentro del header del chat */}
+              <ChatWindow onClose={() => setChatAbierto(false)} />
             </div>
           </div>
         </div>

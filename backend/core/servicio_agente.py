@@ -27,7 +27,14 @@ from __future__ import annotations
 
 import os
 import re
+import unicodedata
 from typing import Optional, TypedDict
+
+
+def _norm(s: str) -> str:
+    """minúsculas sin tildes, para comparar intención sin depender de la grafía."""
+    base = unicodedata.normalize("NFKD", (s or "").lower())
+    return "".join(c for c in base if not unicodedata.combining(c))
 
 from core.guardrails import (
     evaluar_entrada_usuario,
@@ -180,6 +187,99 @@ def _rechaza_email(mensaje: str) -> bool:
         or "sin correo" in bajo
         or "no doy mi" in bajo
     )
+
+
+# ── Intenciones EXPLÍCITAS + reanudación (Resumption Logic) ───────────────────
+# El usuario puede pedir el quiz o registrarse en CUALQUIER momento, incluso tras
+# una interrupción. Estas intenciones fuerzan el flujo del embudo y NO deben
+# clasificarse como pregunta educativa (RAG), que si no interceptaría la petición.
+
+_QUIZ_PALABRAS = ("quiz", "test", "cuestionario")
+_QUIZ_VERBOS = (
+    "quiero", "quisiera", "hacer", "hagamos", "haganme", "empezar", "empieza",
+    "comenzar", "comienza", "iniciar", "inicia", "dame", "damelo", "abrir", "abre",
+    "tomar", "realizar", "vamos", "hacerlo", "pasame", "ponme", "necesito", "listo",
+)
+_QUIZ_NO_INTENCION = ("que es", "que son", "como funciona", "para que sirve",
+                      "que significa", "que mide", "en que consiste")
+
+
+def _intencion_quiz_explicita(mensaje: str) -> bool:
+    """True si el usuario pide EXPLÍCITAMENTE el quiz/test (sin depender del
+    contexto del turno anterior). No confunde con preguntas SOBRE el test."""
+    bajo = _norm(mensaje).strip(" .!¡?¿,")
+    if not any(p in bajo for p in _QUIZ_PALABRAS):
+        return False
+    if bajo.startswith(_QUIZ_NO_INTENCION):
+        return False
+    if "de riesgo" in bajo or "de perfil" in bajo:   # "test de riesgo"
+        return True
+    if len(bajo.split()) <= 5:                        # "el quiz", "quiz por favor"
+        return True
+    return any(v in bajo for v in _QUIZ_VERBOS)
+
+
+_RE_REGISTRO = re.compile(
+    r"(quiero|deseo|me gustaria|puedo|podria|quisiera)\s+"
+    r"(registrar|suscrib|recibir|dar(te|me)?\s+mi\s+correo|dejar(te)?\s+mi\s+correo"
+    r"|dar(te)?\s+mis?\s+datos|hablar\s+con\s+(un\s+)?asesor|contactar)"
+    r"|registrar(me|nos)\b|autoriz(ar|o)\s+(mis\s+)?datos|dar\s+(mi\s+)?consentimiento"
+    r"|hablar\s+con\s+(un\s+)?asesor|contactar\s+(a\s+)?(un\s+)?asesor"
+    r"|te\s+dejo\s+mi\s+correo|quiero\s+que\s+me\s+contacten",
+    re.IGNORECASE,
+)
+
+
+def _intencion_registro(mensaje: str) -> bool:
+    """True si el usuario pide registrarse / dar su correo / hablar con un asesor."""
+    bajo = _norm(mensaje).strip(" .!¡?¿,")
+    if bajo.startswith(("no ", "no,")) or "no quiero" in bajo:
+        return False
+    return bool(_RE_REGISTRO.search(bajo))
+
+
+_NEUTRALES = {
+    "ok", "okay", "oka", "okey", "vale", "listo", "dale", "perfecto", "gracias",
+    "entendido", "entiendo", "sigamos", "continuemos", "sigue", "bien", "genial",
+    "va", "bueno", "claro", "de", "acuerdo", "excelente", "correcto", "ya",
+}
+
+
+def _es_neutral(mensaje: str) -> bool:
+    """Mensaje corto de transición/agradecimiento tras una interrupción."""
+    bajo = _norm(mensaje).strip(" .!¡?¿,")
+    palabras = bajo.split()
+    if not palabras or len(palabras) > 3:
+        return False
+    return any(p in _NEUTRALES for p in palabras)
+
+
+def _reanudacion(
+    mensaje: str,
+    historial: list[dict],
+    quiz_perfil: Optional[str],
+    email_capturado: bool,
+) -> Optional[RespuestaTurno]:
+    """Ante un mensaje neutral, retoma el paso del embudo que quedó pendiente."""
+    if not _es_neutral(mensaje):
+        return None
+    quiz_ofrecido = _veces_dicho(_MARK_QUIZ_OFERTA, historial) > 0
+    email_pedido = (
+        _veces_dicho(_MARK_EMAIL, historial) > 0
+        or _veces_dicho(_MARK_EMAIL_B2B, historial) > 0
+    )
+    if quiz_ofrecido and not quiz_perfil:
+        return _respuesta(
+            "Continuemos donde estábamos, ¿te gustaría hacer el quiz? Son 3 "
+            "preguntas y toma un minuto.",
+            estado_flujo="educacion", accion="proponer_quiz",
+        )
+    if (quiz_perfil or email_pedido) and not email_capturado:
+        return _respuesta(
+            "Volviendo a lo anterior, ¿a qué correo te envío los resultados?",
+            estado_flujo="identificacion", accion="pedir_email",
+        )
+    return None
 
 
 _META_FLUJO = (
@@ -687,6 +787,46 @@ def procesar_turno(
             estado_flujo="educacion",
             accion="abrir_quiz",
         )
+
+    # 2-bis · Intención EXPLÍCITA de quiz (sin depender del contexto del turno
+    #   anterior). Fuerza el quiz y evita que RAG intercepte ("test de riesgo").
+    if _intencion_quiz_explicita(mensaje_usuario):
+        n = f", {nombre}" if nombre else ""
+        if quiz_perfil and not email_capturado:
+            return _respuesta(
+                f"Ese quiz ya lo completaste{n} — tu perfil salió {quiz_perfil}. "
+                "¿A qué correo te envío tu resultado y una ruta de 3 pasos?",
+                estado_flujo="identificacion", accion="pedir_email",
+            )
+        if quiz_perfil:
+            return _respuesta(
+                f"Ya tienes tu perfil ({quiz_perfil}) y tus datos registrados{n}. "
+                "¿Te explico algún concepto o hay algo más en lo que te ayude?",
+                estado_flujo="educacion",
+            )
+        return _respuesta(
+            f"Perfecto{n} — aquí está el quiz. Son 3 preguntas fijas y el resultado "
+            "lo calcula una rúbrica aprobada por cumplimiento:",
+            estado_flujo="educacion", accion="abrir_quiz",
+        )
+
+    # 2-ter · Intención EXPLÍCITA de registrarse / dar correo → INTERCEPCIÓN
+    #   TEMPRANA: se pide el correo YA, aunque queden preguntas de calificación.
+    if _intencion_registro(mensaje_usuario) and not email_capturado:
+        n = f", {nombre}" if nombre else ""
+        seg = senales_desde_historial(
+            historial + [{"rol": "usuario", "texto": mensaje_usuario}], quiz_perfil
+        ).get("segmento", "b2c")
+        return _respuesta(
+            f"Con gusto{n}. {_pedir_email(seg, nombre)}",
+            estado_flujo="identificacion", accion="pedir_email",
+        )
+
+    # 2-quater · Reanudación: ante un mensaje neutral ("ok", "gracias", "sigamos")
+    #   tras una interrupción, se retoma el paso del embudo pendiente.
+    reanuda = _reanudacion(mensaje_usuario, historial, quiz_perfil, email_capturado)
+    if reanuda is not None:
+        return reanuda
 
     # 3 · Una pregunta educativa SIEMPRE se responde (Biblia §7: EDUCACION es
     #     alcanzable desde cualquier estado). Con corpus → tutor con citas;

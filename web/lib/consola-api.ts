@@ -150,6 +150,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(formatearDetalle(body?.detail, res.status, path));
   }
 
+  if (res.status === 204) {
+    return {} as T;
+  }
+
   return res.json() as Promise<T>;
 }
 
@@ -403,6 +407,15 @@ export async function fetchLeadsEnriquecidos(): Promise<Lead[]> {
   );
 
   return enriched;
+}
+
+/**
+ * Elimina un lead y todos sus datos relacionados del CRM de forma dura.
+ */
+export async function eliminarLead(leadId: number | string): Promise<void> {
+  await apiFetch(`/api/consola/leads/${leadId}`, {
+    method: 'DELETE',
+  });
 }
 
 /**
