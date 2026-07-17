@@ -90,12 +90,14 @@ implementaría el CRM corporativo. La consola de la demo ES ese CRM llenándose.
 
 ## 8. La búsqueda del corpus es por palabras clave, no embeddings
 
-**Por qué es a propósito:** son **14 documentos**. Una base vectorial para 14 PDFs
-es sobre-ingeniería que no aporta. La cita al corpus y la negativa honesta (G2)
-funcionan igual.
+**Por qué es a propósito:** son **15 documentos** (14 temas + un índice). Una base
+vectorial para 15 archivos es sobre-ingeniería que no aporta. La búsqueda **tolera
+variantes** (sin tildes, plural/singular, prefijos y sinónimos del dominio: "riesgos"
+encuentra "perfil de riesgo"), así que ya no exige la palabra literal. La cita al
+corpus y la negativa honesta (G2) siguen funcionando igual.
 
-> **Defensa:** *"No sobre-ingenierizamos: para 14 documentos, keywords + citas es
-> más simple, más rápido e igual de verificable."*
+> **Defensa:** *"No sobre-ingenierizamos: para 15 documentos, una recuperación léxica
+> tolerante + citas es más simple, más rápida e igual de verificable que embeddings."*
 
 ## 9. La continuidad usa el historial guardado en la BD
 

@@ -26,6 +26,7 @@ Regla arquitectónica: core/ solo importa tools/ y core/. Nunca app/ ni web/.
 from __future__ import annotations
 
 import os
+import re
 from typing import Optional, TypedDict
 
 from core.guardrails import (
@@ -35,7 +36,7 @@ from core.guardrails import (
     DisparoGuardrail,
     nuevo_disparo,
 )
-from tools.buscar_conocimiento import buscar_conocimiento
+from tools.buscar_conocimiento import buscar_conocimiento, listar_temas
 from tools.inferir_senales import (
     acuse_de_recibo,
     cross_parse,
@@ -303,7 +304,49 @@ def _fuentes_desde_docs(docs: list[dict]) -> list[dict]:
     return [{"cita_visible": d.get("cita_visible") or d.get("id", "")} for d in docs]
 
 
+# "¿Qué temas puedes explicarme?" / "¿de qué me puedes hablar?" — el agente NO
+# debe dar negativa honesta a esto: el catálogo de temas sí lo conoce.
+_RE_TEMAS = re.compile(
+    r"(qu[eé]\s+temas"
+    r"|qu[eé]\s+(me\s+)?puedes\s+(explicar|ense[ñn]ar|responder|contar|hablar)"
+    r"|de\s+qu[eé]\s+(me\s+)?(puedes|sabes|hablas)"
+    r"|sobre\s+qu[eé]\s+(temas|puedes|me\s+puedes)"
+    r"|temas\s+(disponibles|tienes|hay|cubres?|puedes)"
+    r"|list[ao]\s+de\s+temas)",
+    re.IGNORECASE,
+)
+
+
+def _pregunta_por_temas(mensaje: str) -> bool:
+    return bool(_RE_TEMAS.search(mensaje or ""))
+
+
+def _turno_temas() -> RespuestaTurno:
+    """Lista determinista del catálogo de conocimiento (cita el índice FA-000)."""
+    temas = listar_temas()
+    b2c = [t["titulo"] for t in temas if t["publico"] in ("b2c", "ambos", "")]
+    lineas = "\n".join(f"• {t}" for t in b2c[:9])
+    texto = (
+        "Estos son los temas que puedo explicarte con material aprobado de "
+        "Futuro Academy:\n\n"
+        f"{lineas}\n\n"
+        "Pídeme cualquiera por su nombre o con tus propias palabras — por "
+        "ejemplo «háblame del riesgo» o «cómo funciona el interés compuesto». "
+        "¿Por cuál empezamos?"
+    )
+    return _respuesta(
+        texto,
+        fuentes=[{"cita_visible": "Futuro Academy - Índice y objetivo §0"}],
+        estado_flujo="educacion",
+        accion="proponer_quiz",
+    )
+
+
 def _turno_tutor(mensaje: str, historial: list[dict]) -> RespuestaTurno:
+    # Catálogo de temas: respuesta directa, nunca negativa honesta.
+    if _pregunta_por_temas(mensaje):
+        return _turno_temas()
+
     docs = buscar_conocimiento(mensaje, top_k=3)
 
     # G2 · Negativa honesta: sin respaldo en el corpus, no se inventa nada.

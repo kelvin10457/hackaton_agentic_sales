@@ -41,7 +41,7 @@ export function ConsentimientoModal({
   ];
 
   return (
-    <div className="my-2 w-full max-w-md animate-fade-up rounded-2xl border border-border bg-card p-4 shadow-sm sm:ml-9">
+    <div className="my-2 w-full animate-fade-up rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-4">
       <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-futuro-corp">
         <ShieldCheck className="size-3.5" aria-hidden="true" />
         Tu autorización, por finalidad

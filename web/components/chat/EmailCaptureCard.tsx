@@ -36,7 +36,7 @@ export function EmailCaptureCard({
     <form
       onSubmit={enviar}
       noValidate
-      className="my-2 w-full max-w-md animate-fade-up rounded-2xl border border-border bg-card p-4 shadow-sm sm:ml-9"
+      className="my-2 w-full animate-fade-up rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-4"
     >
       <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-futuro-corp">
         <Mail className="size-3.5" aria-hidden="true" />

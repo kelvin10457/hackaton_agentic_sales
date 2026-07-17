@@ -16,6 +16,7 @@ import ScorePanel from './ScorePanel';
 import BriefPanel from './BriefPanel';
 import AuditLog from './AuditLog';
 import ApprovalBlock from './ApprovalBlock';
+import AsignarAsesor from './AsignarAsesor';
 import { Badge } from '@/components/shared/badge';
 import { etiqueta, formatFechaLarga, formatRelativo } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -210,6 +211,11 @@ export default function LeadDetailPanel({ lead }: { lead: Lead | null }) {
             lead={lead}
             onActionComplete={(tipo, data) => setAccionRealizada({ tipo, data })}
           />
+        )}
+
+        {/* Asignar asesor: solo si el prospecto autorizó ser contactado. */}
+        {lead.consentimiento?.comunicaciones_comerciales?.otorgado && (
+          <AsignarAsesor leadId={lead.id} nombreLead={lead.identidad.nombre} />
         )}
 
         <AuditLog lead={lead} accionSimulada={accionRealizada} />

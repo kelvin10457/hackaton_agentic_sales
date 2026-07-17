@@ -26,6 +26,14 @@ import type { MensajeChat, PerfilRiesgo, Quiz, TipoLead } from "@/lib/types";
 
 type FlujoGuiado = "inactivo" | "quiz" | "email" | "consentimiento";
 
+// Detecta un correo dentro de un mensaje de texto libre (en cualquier momento
+// del chat), para poder disparar el consentimiento aunque no venga por la tarjeta.
+const RE_EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]{2,}/;
+function detectarEmail(texto: string): string | null {
+  const m = texto.match(RE_EMAIL);
+  return m ? m[0].replace(/[.,;:]+$/, "") : null;
+}
+
 export function ChatWindow() {
   const [mensajes, setMensajes] = useState<MensajeChat[]>([]);
   const [escribiendo, setEscribiendo] = useState(false);
@@ -107,6 +115,7 @@ export function ChatWindow() {
 
   async function handleSend(texto: string) {
     if (!token || !texto.trim()) return;
+
     // Si la tarjeta de correo estaba abierta y el usuario prefirió escribir,
     // se cierra: nada de recuadros persistentes que nadie pidió.
     if (flujo === "email" || flujo === "consentimiento") {
@@ -114,10 +123,25 @@ export function ChatWindow() {
       setSolicitudCorreoFinalizada(true);
     }
     agregarMensaje("usuario", texto);
+
+    // ¿El usuario entregó su correo por texto (en cualquier momento)? Igual se
+    // manda el turno al backend para que capture el nombre/señales, pero el
+    // siguiente paso SIEMPRE será el consentimiento.
+    const correoLibre = !emailEnviado ? detectarEmail(texto) : null;
+
     setEscribiendo(true);
     try {
       const respuesta = await enviarMensaje(token, texto);
       if (respuesta.badge_tipo) setBadgeTipo(respuesta.badge_tipo);
+
+      if (correoLibre) {
+        // Correo recibido → se omite la respuesta de embudo del agente (que solo
+        // volvería a pedir el correo) y se pasa directo a pedir el consentimiento.
+        // Sin esto, un correo por texto libre nunca disparaba el consentimiento.
+        abrirConsentimiento(correoLibre);
+        return;
+      }
+
       agregarMensaje("agente", respuesta.mensaje, {
         fuentes: respuesta.fuentes,
         guardrail: respuesta.guardrail,
@@ -179,11 +203,13 @@ export function ChatWindow() {
     }
   }
 
-  function confirmarEmail(correo: string) {
+  // Paso único de consentimiento: se llega aquí tanto por la tarjeta de correo
+  // como al detectar el correo en texto libre. Siempre pide autorización antes
+  // de convertir el chat en un lead (nombre + correo + consentimiento).
+  function abrirConsentimiento(correo: string) {
     setEmail(correo);
     setFlujo("inactivo");
     setSolicitudCorreoFinalizada(true);
-    agregarMensaje("usuario", `Mi correo es ${correo}`);
     setEscribiendo(true);
     window.setTimeout(() => {
       agregarMensaje(
@@ -193,6 +219,11 @@ export function ChatWindow() {
       setEscribiendo(false);
       setFlujo("consentimiento");
     }, 700);
+  }
+
+  function confirmarEmail(correo: string) {
+    agregarMensaje("usuario", `Mi correo es ${correo}`);
+    abrirConsentimiento(correo);
   }
 
   async function completarConsentimiento(datos: boolean, comercial: boolean) {
@@ -283,7 +314,7 @@ export function ChatWindow() {
           role="log"
           aria-live="polite"
           aria-label="Conversación con el asistente"
-          className="scrollbar-thin flex-1 overflow-y-auto bg-futuro-bg/60 px-3 py-4 sm:px-4"
+          className="scrollbar-thin flex-1 overflow-y-auto overflow-x-hidden bg-futuro-bg/60 px-3 py-4 sm:px-4"
         >
           {mensajes.length === 0 && (
             <Bienvenida onSelect={handleSend} deshabilitado={ocupado} />
