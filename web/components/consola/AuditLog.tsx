@@ -214,7 +214,7 @@ export default function AuditLog({
   }
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+    <section className="borde-degradado-suave rounded-xl p-5 shadow-sm">
       <h3 className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
         <Clock className="size-4" aria-hidden="true" />
         Bitácora de auditoría
@@ -249,7 +249,12 @@ export default function AuditLog({
                 )}
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                  <p className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+                  <p
+                    className={cn(
+                      'flex items-center gap-2 text-[13px] font-semibold',
+                      log.esHumano ? 'text-emerald-900' : 'text-foreground'
+                    )}
+                  >
                     {log.nombreActor}
                     <span
                       className={cn(
@@ -265,7 +270,10 @@ export default function AuditLog({
                   <time
                     dateTime={log.ts}
                     title={`${formatFechaLarga(log.ts)} · ${formatRelativo(log.ts)}`}
-                    className="font-mono text-[11px] tabular-nums text-muted-foreground"
+                    className={cn(
+                      'font-mono text-[11px] tabular-nums',
+                      log.esHumano ? 'text-emerald-700' : 'text-muted-foreground'
+                    )}
                   >
                     {formatHora(log.ts)}
                   </time>

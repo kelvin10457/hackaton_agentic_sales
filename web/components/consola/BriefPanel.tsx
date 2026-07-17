@@ -41,7 +41,7 @@ export default function BriefPanel({ lead }: { lead: Lead }) {
       : [];
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+    <section className="borde-degradado-suave rounded-xl p-5 shadow-sm">
       <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
         <Target className="size-4" aria-hidden="true" />
         Brief del lead

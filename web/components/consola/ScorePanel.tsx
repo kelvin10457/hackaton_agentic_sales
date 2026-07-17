@@ -79,7 +79,7 @@ export default function ScorePanel({ score }: { score: ScoreLead }) {
   }, [score]);
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+    <section className="borde-degradado rounded-xl p-5 shadow-sm">
       <div className="mb-5 flex items-end justify-between gap-3">
         <div>
           <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">

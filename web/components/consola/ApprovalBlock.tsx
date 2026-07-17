@@ -156,7 +156,7 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
   const idBloqueo = `bloqueo-${lead.id}`;
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+    <section className="contenedor-accion rounded-xl p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
           Acción propuesta por el agente
@@ -204,8 +204,8 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
       )}
 
       {/* Razonamiento del agente + fuentes (violeta = voz de la IA) */}
-      <div className="mt-3 rounded-lg border border-futuro-ia/15 bg-futuro-ia/5 p-3.5">
-        <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-futuro-ia">
+      <div className="caja-razonamiento mt-3 rounded-lg border p-3.5">
+        <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-futuro-ia dark:text-violet-300">
           <Bot className="size-3.5" aria-hidden="true" />
           Razonamiento del agente
         </p>
@@ -400,7 +400,7 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
               <Button
                 onClick={aprobar}
                 disabled={esObsoleta || enviando}
-                className="min-w-[9.5rem]"
+                className="min-w-[9.5rem] bg-[#6518f8] text-white hover:bg-[#d500cf]"
               >
                 {enviando ? (
                   <Loader2 className="animate-spin" aria-hidden="true" />

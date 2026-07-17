@@ -136,7 +136,7 @@ export default function PipelineTable({
         header: 'Prospecto',
         enableSorting: false,
         cell: (info) => (
-          <span className="block max-w-[150px] truncate font-medium text-foreground">
+          <span className="nombre-lead block max-w-[150px] truncate font-medium text-foreground">
             {info.getValue()}
           </span>
         ),
@@ -465,10 +465,10 @@ export default function PipelineTable({
                     }
                   }}
                   className={cn(
-                    'h-11 cursor-pointer border-l-2 transition-colors duration-150 focus-visible:bg-accent/70 focus-visible:outline-none',
+                    'fila-lead h-11 cursor-pointer border-l-2 transition-colors duration-150 focus-visible:bg-accent/70 focus-visible:outline-none',
                     seleccionado
-                      ? 'border-l-futuro-accent bg-accent/70'
-                      : 'border-l-transparent hover:bg-accent/40'
+                      ? 'fila-sel border-l-futuro-accent bg-accent/70'
+                      : 'border-l-transparent'
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (
