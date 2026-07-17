@@ -65,6 +65,13 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
     [lead]
   );
 
+  // Solo se puede decidir sobre una acción que EXISTE en el backend. Cuando el
+  // agente no entregó propuesta, accionPorDefecto() arma un borrador de
+  // referencia cuyo id no es numérico ("acc_<lead>"): mandarlo a la API daba
+  // /acciones/NaN/aprobar → 422. Se muestra, pero no se puede aprobar.
+  const idAccion = Number(lead.accion_propuesta?.id);
+  const esPersistida = lead.accion_propuesta != null && Number.isFinite(idAccion);
+
   const [asunto, setAsunto] = useState(accion.borrador.asunto);
   const [cuerpo, setCuerpo] = useState(accion.borrador.cuerpo);
   const [motivoRechazo, setMotivoRechazo] = useState('');
@@ -95,17 +102,17 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
     accion.estado === 'ejecutada';
   const editado =
     asunto !== accion.borrador.asunto || cuerpo !== accion.borrador.cuerpo;
-  const camposDeshabilitados = bloqueado || esObsoleta || yaResuelta;
+  const camposDeshabilitados = bloqueado || esObsoleta || yaResuelta || !esPersistida;
 
   async function aprobar() {
-    if (enviando) return;              // guarda anti doble-clic
+    if (enviando || !esPersistida) return;   // guarda anti doble-clic / acción inexistente
     const tipo = editado ? 'editar_aprobar' : 'aprobar';
     setEnviando(true);
     try {
       // Se envía SIEMPRE el borrador en pantalla. El backend compara con el que
       // redactó el agente: si cambió, queda como 'editada_y_aprobada' y marca
       // editado_por_humano. La edición ya no se pierde (criterio 3.3).
-      await apiAprobar(Number(accion.id), { asunto, cuerpo });
+      await apiAprobar(idAccion, { asunto, cuerpo });
       onActionComplete?.(tipo, { asunto, cuerpo });
       toast({
         tipo: 'success',
@@ -125,10 +132,10 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
   }
 
   async function rechazar() {
-    if (enviando) return;
+    if (enviando || !esPersistida) return;
     setEnviando(true);
     try {
-      await apiRechazar(Number(accion.id), motivoRechazo.trim());
+      await apiRechazar(idAccion, motivoRechazo.trim());
       onActionComplete?.('rechazar', { motivo: motivoRechazo.trim() });
       toast({
         tipo: 'info',
@@ -296,6 +303,31 @@ export default function ApprovalBlock({ lead, onActionComplete }: ApprovalBlockP
             </div>
           </div>
         )
+      ) : !esPersistida ? (
+        /* ---- El agente aún no propuso una acción para este lead ----
+           El borrador de arriba es una referencia local, no existe en el
+           backend: ofrecer "Aprobar" aquí devolvía 422. */
+        <div className="mt-4 space-y-3">
+          <div
+            role="status"
+            className="flex items-start gap-3 rounded-xl border border-border bg-muted/60 p-4"
+          >
+            <Bot className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <div>
+              <h4 className="text-sm font-bold text-foreground">
+                Sin propuesta del agente todavía
+              </h4>
+              <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+                El agente aún no ha generado una acción para{' '}
+                {lead.identidad.nombre.split(' ')[0]}. El borrador de arriba es una
+                referencia: no hay nada que aprobar hasta que la propuesta se genere.
+              </p>
+            </div>
+          </div>
+          <Button disabled className="w-full">
+            <Lock aria-hidden="true" /> Aprobar envío — sin propuesta
+          </Button>
+        </div>
       ) : bloqueado ? (
         /* ---- PLANO ESTRELLA: consentimiento por finalidad ---- */
         <div className="mt-4 space-y-3">
