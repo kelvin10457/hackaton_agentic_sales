@@ -22,13 +22,13 @@ export function MessageBubble({ mensaje }: { mensaje: MensajeChat }) {
       )}
       <div
         className={cn(
-          "flex max-w-[82%] flex-col gap-1 sm:max-w-[75%]",
+          "flex min-w-0 max-w-[82%] flex-col gap-1 sm:max-w-[75%]",
           esAgente ? "items-start" : "items-end"
         )}
       >
         <div
           className={cn(
-            "rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm",
+            "min-w-0 max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm",
             esAgente
               ? esGuardrail
                 ? "rounded-tl-md border border-amber-200 bg-amber-50 text-amber-950"
@@ -44,7 +44,9 @@ export function MessageBubble({ mensaje }: { mensaje: MensajeChat }) {
               Negativa honesta — sin fuente, no hay afirmación
             </p>
           )}
-          <p className="whitespace-pre-line">{mensaje.texto}</p>
+          <p className="whitespace-pre-line break-words [overflow-wrap:anywhere]">
+            {mensaje.texto}
+          </p>
           {mensaje.fuentes && mensaje.fuentes.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {mensaje.fuentes.map((f, i) => (

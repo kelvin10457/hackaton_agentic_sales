@@ -314,7 +314,7 @@ export function ChatWindow() {
           role="log"
           aria-live="polite"
           aria-label="Conversación con el asistente"
-          className="scrollbar-thin flex-1 overflow-y-auto bg-futuro-bg/60 px-3 py-4 sm:px-4"
+          className="scrollbar-thin flex-1 overflow-y-auto overflow-x-hidden bg-futuro-bg/60 px-3 py-4 sm:px-4"
         >
           {mensajes.length === 0 && (
             <Bienvenida onSelect={handleSend} deshabilitado={ocupado} />

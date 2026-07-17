@@ -77,6 +77,29 @@ def redactar_borrador(
     return asunto, cuerpo
 
 
+# Interpretación de negocio por banda: por qué esa puntuación hace (o no) al
+# prospecto un lead potencial. Determinista (G7): se elige por la banda, no la
+# redacta un LLM. Es lo que el ejecutivo evalúa antes de decidir.
+_INTERPRETACION_BANDA = {
+    "caliente": (
+        "Es un lead PRIORITARIO: la puntuación alta refleja intención clara y buen "
+        "encaje con la oferta, así que amerita contacto humano pronto."
+    ),
+    "critico": (
+        "Es un lead PRIORITARIO: la puntuación alta refleja intención clara y buen "
+        "encaje con la oferta, así que amerita contacto humano pronto."
+    ),
+    "tibio": (
+        "Es un lead con POTENCIAL: muestra interés real, pero aún faltan señales para "
+        "priorizarlo; conviene nutrirlo y reevaluar."
+    ),
+    "frio": (
+        "Es un lead de BAJA prioridad hoy: hay pocas señales de intención o encaje; "
+        "se mantiene en nutrición sin descartarlo."
+    ),
+}
+
+
 def construir_razonamiento(
     score: ScoreLead,
     ruta: str,
@@ -85,12 +108,19 @@ def construir_razonamiento(
     """El texto que Carlos lee ANTES de aprobar (criterio 3.2).
 
     Se arma por PLANTILLA desde cifras deterministas (G7): ningún número aquí
-    proviene del texto del LLM.
+    proviene del texto del LLM. Incluye:
+      1) el veredicto (score + banda),
+      2) por qué es (o no) un lead potencial para la empresa,
+      3) cómo se calculó el score (desglose por señal),
+      4) las señales duras que sostienen la decisión.
     """
+    interp = _INTERPRETACION_BANDA.get(score.banda, "")
     partes = [
-        f"Score {score.total:.0f}/100 ({score.banda}). Ruta determinista: {ruta}.",
-        score.justificacion,
+        f"Score {score.total:.0f}/100 ({score.banda}). {interp}".strip(),
+        f"Ruta determinista sugerida: {ruta}.",
     ]
+    if score.justificacion:
+        partes.append(f"Cómo se calculó: {score.justificacion}")
     if senales.perfil_riesgo:
         partes.append(f"Perfil de riesgo (quiz determinista): {senales.perfil_riesgo}.")
     if senales.pidio_asesor:
